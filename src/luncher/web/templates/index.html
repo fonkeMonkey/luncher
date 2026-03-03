@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Luncher - Polední menu</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .date {
+            font-size: 1em;
+            margin-top: 10px;
+            opacity: 0.8;
+        }
+
+        .menus-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .menu-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .menu-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.25);
+        }
+
+        .menu-card.error {
+            opacity: 0.6;
+        }
+
+        .restaurant-name {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .menu-items {
+            list-style: none;
+        }
+
+        .menu-item {
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+        }
+
+        .menu-item:last-child {
+            border-bottom: none;
+        }
+
+        .item-name {
+            flex: 1;
+            margin-right: 12px;
+            color: #333;
+        }
+
+        .item-soup {
+            color: #f59e0b;
+            font-weight: 500;
+        }
+
+        .item-price {
+            color: #10b981;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .error-message {
+            color: #ef4444;
+            font-style: italic;
+        }
+
+        .ai-section {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-top: 30px;
+        }
+
+        .ai-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .ai-title {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #764ba2;
+        }
+
+        .ai-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .ai-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .ai-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .ai-content {
+            color: #333;
+            line-height: 1.8;
+            white-space: pre-wrap;
+        }
+
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 40px;
+            opacity: 0.8;
+        }
+
+        @media (max-width: 768px) {
+            .menus-grid {
+                grid-template-columns: 1fr;
+            }
+
+            h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🍽️ Luncher</h1>
+            <div class="subtitle">Polední menu v okolí</div>
+            <div class="date">{{ today.strftime("%A, %d. %B %Y") }}</div>
+        </header>
+
+        <div class="menus-grid">
+            {% for menu in menus %}
+            <div class="menu-card {% if not menu.is_valid %}error{% endif %}">
+                <div class="restaurant-name">{{ menu.restaurant_name }}</div>
+
+                {% if menu.is_valid %}
+                <ul class="menu-items">
+                    {% for item in menu.items %}
+                    <li class="menu-item">
+                        <span class="item-name {% if item.type.value == 'soup' %}item-soup{% endif %}">
+                            {% if item.type.value == 'soup' %}🍲 {% endif %}{{ item.name }}
+                        </span>
+                        {% if item.price %}
+                        <span class="item-price">{{ item.price|int }} Kč</span>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="error-message">{{ menu.error or "Menu není dostupné" }}</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="ai-section">
+            <div class="ai-header">
+                <div class="ai-title">🤖 AI Doporučení</div>
+                <button class="ai-button" onclick="loadAIComparison()">Porovnat menu</button>
+            </div>
+            <div class="ai-content" id="ai-content">
+                Klikni na tlačítko výše pro AI analýzu dnešních menu.
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Vytvořeno s ❤️ pomocí Claude Code</p>
+        </div>
+    </div>
+
+    <script>
+        async function loadAIComparison() {
+            const button = document.querySelector('.ai-button');
+            const content = document.getElementById('ai-content');
+
+            button.disabled = true;
+            button.textContent = 'Načítám...';
+            content.innerHTML = '<div class="loading">Zpracovávám AI analýzu...</div>';
+
+            try {
+                const response = await fetch('/api/compare');
+                const data = await response.json();
+
+                if (data.error) {
+                    content.innerHTML = `<div class="error-message">${data.error}</div>`;
+                } else {
+                    content.textContent = data.comparison;
+                }
+            } catch (error) {
+                content.innerHTML = '<div class="error-message">Chyba při načítání AI analýzy</div>';
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Načíst znovu';
+            }
+        }
+    </script>
+</body>
+</html>
