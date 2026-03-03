@@ -1,7 +1,8 @@
 """Scraper for U Telleru restaurant."""
 
+import re
 from datetime import date, datetime
-from typing import Optional, List
+from typing import Optional, List, Tuple
 import requests
 from bs4 import BeautifulSoup
 from luncher.scrapers.base import BaseScraper
@@ -11,129 +12,99 @@ from luncher.core.models import DailyMenu, MenuItem, MenuItemType
 
 @ScraperRegistry.register('utelleru')
 class UtelleruScraper(BaseScraper):
-    """Scraper for U Telleru restaurant (https://www.utelleru.cz/obedy/)."""
+    """Scraper for U Telleru restaurant (https://www.utelleru.cz/obedy/).
+
+    Structure: days alternate between div.bezova and div.modra sections.
+    Each section has div.polozka4 items containing:
+      div.nazev5 > p  (item name)
+      div.alergeny    (allergen codes)
+      div.cena        (price, e.g. "59 Kč")
+    """
 
     async def scrape(self, target_date: Optional[date] = None) -> DailyMenu:
-        """Scrape U Telleru menu for the specified date."""
         if target_date is None:
             target_date = date.today()
 
         try:
-            # Fetch the page
             response = requests.get(self.config.url, timeout=30)
             response.raise_for_status()
             soup = BeautifulSoup(response.text, 'lxml')
 
-            # Get the Czech day name
             day_name = self.get_czech_weekday_name(target_date)
+            section = self._find_day_section(soup, day_name)
 
-            # Find today's menu section
-            items = []
-            raw_text_parts = []
+            if section is None:
+                return self.create_error_menu(target_date, f"Menu pro {day_name} nebylo nalezeno")
 
-            # Look for the day header (e.g., "Pondělí")
-            # The structure typically has a heading or strong tag with the day name
-            day_headers = soup.find_all(['h2', 'h3', 'strong', 'b'])
-
-            for header in day_headers:
-                header_text = header.get_text(strip=True).lower()
-                if day_name in header_text:
-                    # Found the right day, extract menu items from following siblings
-                    items, raw_text = self._extract_menu_items(header)
-                    raw_text_parts.append(raw_text)
-                    break
-
-            # If we didn't find items by day name, try to get all menu items
-            if not items:
-                # Try alternative: look for menu items in a specific section
-                menu_section = soup.find('div', class_=['menu', 'daily-menu', 'obedy'])
-                if menu_section:
-                    items, raw_text = self._extract_menu_items(menu_section)
-                    raw_text_parts.append(raw_text)
+            items, raw_text = self._extract_items(section)
 
             return DailyMenu(
                 restaurant_id=self.config.id,
                 restaurant_name=self.config.name,
                 date=target_date,
                 items=items,
-                raw_text="\n".join(raw_text_parts) if raw_text_parts else response.text[:500],
+                raw_text=raw_text,
                 scraped_at=datetime.now(),
                 url=self.config.url
             )
 
         except requests.RequestException as e:
-            return self.create_error_menu(target_date, f"Failed to fetch page: {e}")
+            return self.create_error_menu(target_date, f"Chyba načítání: {e}")
         except Exception as e:
-            return self.create_error_menu(target_date, f"Scraping error: {e}")
+            return self.create_error_menu(target_date, f"Chyba scrapování: {e}")
 
-    def _extract_menu_items(self, element) -> tuple[List[MenuItem], str]:
-        """
-        Extract menu items from an element and its siblings.
+    def _find_day_section(self, soup: BeautifulSoup, day_name: str):
+        """Find the day section div (bezova or modra) for the given day."""
+        for div in soup.find_all('div', class_=['bezova', 'modra']):
+            h2 = div.find('h2')
+            if h2 and day_name in h2.get_text(strip=True).lower():
+                return div
+        return None
 
-        Returns:
-            Tuple of (items list, raw text)
-        """
+    def _extract_items(self, section) -> Tuple[List[MenuItem], str]:
+        """Extract menu items from a day section."""
         items = []
-        raw_text_parts = []
+        raw_parts = []
 
-        # Try to find items in list elements
-        parent = element.find_parent(['div', 'section', 'article'])
-        if not parent:
-            parent = element
+        for p4 in section.find_all('div', class_='polozka4'):
+            name_div = p4.find('div', class_='nazev5')
+            price_div = p4.find('div', class_='cena')
 
-        # Look for lists (ul, ol) or paragraphs
-        for list_elem in parent.find_all(['ul', 'ol', 'p']):
-            list_items = list_elem.find_all('li') if list_elem.name in ['ul', 'ol'] else [list_elem]
+            if not name_div:
+                continue
 
-            for item_elem in list_items:
-                text = item_elem.get_text(strip=True)
-                if not text or len(text) < 3:
-                    continue
+            # Name is in a <p> inside nazev5, or directly
+            p_tag = name_div.find('p')
+            raw_name = (p_tag or name_div).get_text(strip=True)
+            if not raw_name:
+                continue
 
-                raw_text_parts.append(text)
+            raw_parts.append(raw_name)
 
-                # Try to parse item
-                menu_item = self._parse_menu_item(text)
-                if menu_item:
-                    items.append(menu_item)
+            # Price
+            price_text = price_div.get_text(strip=True) if price_div else ''
+            price = self._parse_price(price_text)
 
-        return items, "\n".join(raw_text_parts)
+            # Clean name: remove leading number prefix ("1.", "2.", "Náš tip:")
+            name = re.sub(r'^\d+\.\s*', '', raw_name).strip()
+            name = re.sub(r'^náš tip:\s*', '', name, flags=re.IGNORECASE).strip()
 
-    def _parse_menu_item(self, text: str) -> Optional[MenuItem]:
-        """Parse a single menu item from text."""
+            # Item type
+            nl = raw_name.lower()
+            if any(w in nl for w in ['polévka', 'vývar', 'polívka']):
+                item_type = MenuItemType.SOUP
+            elif any(w in nl for w in ['dezert', 'moučník', 'zákusek']):
+                item_type = MenuItemType.DESSERT
+            else:
+                item_type = MenuItemType.MAIN
+
+            items.append(MenuItem(name=name, price=price, type=item_type))
+
+        return items, "\n".join(raw_parts)
+
+    def _parse_price(self, text: str) -> Optional[float]:
+        """Parse price from '59 Kč' format."""
         if not text:
             return None
-
-        # Detect item type
-        item_type = MenuItemType.OTHER
-        text_lower = text.lower()
-
-        if any(word in text_lower for word in ['polévka', 'polievka', 'soup']):
-            item_type = MenuItemType.SOUP
-        elif any(word in text_lower for word in ['hlavní', 'jídlo', 'main']):
-            item_type = MenuItemType.MAIN
-        elif any(word in text_lower for word in ['příloha', 'priloha', 'side']):
-            item_type = MenuItemType.SIDE
-        elif any(word in text_lower for word in ['dezert', 'moučník', 'dessert']):
-            item_type = MenuItemType.DESSERT
-        else:
-            # If no type keyword, assume it's a main dish
-            item_type = MenuItemType.MAIN
-
-        # Extract price
-        price = self.normalize_price(text)
-
-        # Clean up the name by removing price info
-        name = text
-        if price:
-            # Remove price patterns from name
-            import re
-            name = re.sub(r'\d+\s*[,.-]?\s*(?:kč|czk)?', '', name, flags=re.IGNORECASE)
-            name = name.strip(' ,-.')
-
-        return MenuItem(
-            name=name,
-            description=None,
-            price=price,
-            type=item_type
-        )
+        m = re.search(r'(\d+)', text)
+        return float(m.group(1)) if m else None

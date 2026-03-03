@@ -1,7 +1,8 @@
 """Scraper for PORKE restaurant."""
 
+import re
 from datetime import date, datetime
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from luncher.scrapers.base import BaseScraper
 from luncher.scrapers.registry import ScraperRegistry
 from luncher.core.models import DailyMenu, MenuItem, MenuItemType
@@ -9,14 +10,22 @@ from luncher.core.models import DailyMenu, MenuItem, MenuItemType
 
 @ScraperRegistry.register('porke')
 class PorkeScraper(BaseScraper):
-    """Scraper for PORKE restaurant (https://www.porke.cz/)."""
+    """Scraper for PORKE restaurant (https://www.porke.cz/).
+
+    The lunch menu is inside a tab panel: a[href="#tabid_238_1"].
+    Must click the tab with Playwright to reveal the content.
+    Items use Elementor price list widgets:
+      ul.elementor-price-list > li.elementor-price-list-item
+        span.elementor-price-list-title   — item name
+        span.elementor-price-list-price   — price (e.g. "179 Kč")
+        p.elementor-price-list-description — optional description
+    Soups are identified by price 49 Kč or keywords in the name.
+    """
+
+    TAB_SELECTOR = 'a[href="#tabid_238_1"]'
+    PANEL_ID = 'tabid_238_1'
 
     async def scrape(self, target_date: Optional[date] = None) -> DailyMenu:
-        """
-        Scrape PORKE menu for the specified date.
-
-        This requires Playwright as the menu is loaded dynamically via JavaScript.
-        """
         if target_date is None:
             target_date = date.today()
 
@@ -24,158 +33,84 @@ class PorkeScraper(BaseScraper):
             from playwright.async_api import async_playwright
         except ImportError:
             return self.create_error_menu(
-                target_date,
-                "Playwright not installed. Run: playwright install chromium"
+                target_date, "Playwright není nainstalován. Spusť: playwright install chromium"
             )
 
         try:
             async with async_playwright() as p:
-                # Launch browser
                 browser = await p.chromium.launch(headless=True)
-                context = await browser.new_context()
-                page = await context.new_page()
-
-                # Navigate to the page
+                page = await browser.new_page()
                 await page.goto(self.config.url, timeout=30000)
-
-                # Wait for page to load
                 await page.wait_for_load_state('networkidle')
 
-                # Look for and click the "poledni menu" button
-                try:
-                    # Try different selectors for the lunch menu button
-                    button_selectors = [
-                        'text="poledni menu"',
-                        'text="polední menu"',
-                        'text="Polední menu"',
-                        'button:has-text("poledni")',
-                        'button:has-text("polední")',
-                        'a:has-text("poledni")',
-                        'a:has-text("polední")',
-                        '[href*="poledni"]',
-                        '[href*="lunch"]'
-                    ]
+                # Click the POLEDNÍ MENU tab
+                await page.click(self.TAB_SELECTOR)
+                await page.wait_for_timeout(1000)
 
-                    button_clicked = False
-                    for selector in button_selectors:
-                        try:
-                            button = page.locator(selector).first
-                            if await button.count() > 0:
-                                await button.click()
-                                button_clicked = True
-                                # Wait for content to load after click
-                                await page.wait_for_timeout(2000)
-                                break
-                        except:
-                            continue
-
-                except Exception as e:
-                    # If button click fails, continue anyway - menu might be visible
-                    pass
-
-                # Extract menu content
                 content = await page.content()
-                from bs4 import BeautifulSoup
-                soup = BeautifulSoup(content, 'lxml')
-
-                # Get the Czech day name
-                day_name = self.get_czech_weekday_name(target_date)
-
-                items = []
-                raw_text_parts = []
-
-                # Look for menu sections
-                menu_sections = soup.find_all(['div', 'section'], class_=lambda x: x and any(
-                    keyword in str(x).lower() for keyword in ['menu', 'lunch', 'obed', 'poledni']
-                ))
-
-                for section in menu_sections:
-                    section_items, section_text = self._extract_menu_items(section, day_name)
-                    items.extend(section_items)
-                    if section_text:
-                        raw_text_parts.append(section_text)
-
-                # If no items found in specific sections, try broader search
-                if not items:
-                    # Look for any text containing day name
-                    all_text = soup.get_text()
-                    if day_name in all_text.lower():
-                        items, raw_text = self._extract_menu_items(soup.body, day_name)
-                        raw_text_parts.append(raw_text)
-
                 await browser.close()
 
-                return DailyMenu(
-                    restaurant_id=self.config.id,
-                    restaurant_name=self.config.name,
-                    date=target_date,
-                    items=items,
-                    raw_text="\n".join(raw_text_parts) if raw_text_parts else content[:500],
-                    scraped_at=datetime.now(),
-                    url=self.config.url
-                )
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(content, 'lxml')
+
+            panel = soup.find(id=self.PANEL_ID)
+            if not panel:
+                return self.create_error_menu(target_date, "Panel poledního menu nebyl nalezen")
+
+            items, raw_text = self._extract_items(panel)
+
+            return DailyMenu(
+                restaurant_id=self.config.id,
+                restaurant_name=self.config.name,
+                date=target_date,
+                items=items,
+                raw_text=raw_text,
+                scraped_at=datetime.now(),
+                url=self.config.url
+            )
 
         except Exception as e:
-            return self.create_error_menu(target_date, f"Scraping error: {e}")
+            return self.create_error_menu(target_date, f"Chyba scrapování: {e}")
 
-    def _extract_menu_items(self, container, day_name: str) -> tuple[List[MenuItem], str]:
-        """Extract menu items from a container."""
+    def _extract_items(self, panel) -> Tuple[List[MenuItem], str]:
+        """Extract items from Elementor price list widgets in the panel."""
         items = []
-        raw_text_parts = []
+        raw_parts = []
 
-        # Find all potential menu item elements
-        elements = container.find_all(['li', 'p', 'div', 'span'])
+        for li in panel.find_all('li', class_='elementor-price-list-item'):
+            title_el = li.find('span', class_='elementor-price-list-title')
+            price_el = li.find('span', class_='elementor-price-list-price')
+            desc_el = li.find('p', class_=lambda c: c and 'description' in ' '.join(c))
 
-        for elem in elements:
-            text = elem.get_text(strip=True)
-            if not text or len(text) < 5:
+            name = title_el.get_text(strip=True) if title_el else ''
+            price_text = price_el.get_text(strip=True) if price_el else ''
+            description = desc_el.get_text(strip=True) if desc_el else None
+
+            if not name:
                 continue
 
-            # Skip navigation and non-menu content
-            if any(skip in text.lower() for skip in [
-                'kontakt', 'otevírací', 'galerie', 'o nás', 'copyright',
-                'facebook', 'instagram', 'menu', 'hlavní strana'
-            ]):
-                continue
+            # Parse price
+            price = None
+            m = re.search(r'(\d+)', price_text)
+            if m:
+                price = float(m.group(1))
 
-            raw_text_parts.append(text)
+            raw_parts.append(f"{name}{' - ' + description if description else ''} - {price_text}")
 
-            # Parse menu item
-            menu_item = self._parse_menu_item(text)
-            if menu_item:
-                items.append(menu_item)
+            # Soups have 49 Kč price or soup keywords
+            nl = name.lower()
+            if price == 49.0 or any(w in nl for w in ['polévka', 'vývar', 'krém', 'bramborová']):
+                item_type = MenuItemType.SOUP
+            elif any(w in nl for w in ['dezert', 'moučník', 'zákusek']):
+                item_type = MenuItemType.DESSERT
+            else:
+                item_type = MenuItemType.MAIN
 
-        return items, "\n".join(raw_text_parts)
+            items.append(MenuItem(
+                name=name,
+                description=description,
+                price=price,
+                type=item_type
+            ))
 
-    def _parse_menu_item(self, text: str) -> Optional[MenuItem]:
-        """Parse a single menu item from text."""
-        if not text:
-            return None
-
-        # Detect item type
-        item_type = MenuItemType.MAIN
-        text_lower = text.lower()
-
-        if any(word in text_lower for word in ['polévka', 'polievka']):
-            item_type = MenuItemType.SOUP
-        elif any(word in text_lower for word in ['dezert', 'moučník']):
-            item_type = MenuItemType.DESSERT
-        elif any(word in text_lower for word in ['příloha', 'priloha']):
-            item_type = MenuItemType.SIDE
-
-        # Extract price
-        price = self.normalize_price(text)
-
-        # Clean up the name
-        name = text
-        if price:
-            import re
-            name = re.sub(r'\d+\s*[,.-]?\s*(?:kč|czk)?', '', name, flags=re.IGNORECASE)
-            name = name.strip(' ,-.')
-
-        return MenuItem(
-            name=name,
-            description=None,
-            price=price,
-            type=item_type
-        )
+        return items, "\n".join(raw_parts)

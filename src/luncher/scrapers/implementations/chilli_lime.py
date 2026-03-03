@@ -1,9 +1,8 @@
 """Scraper for Chilli & Lime restaurant."""
 
 from datetime import date, datetime
-from typing import Optional, List
+from typing import Optional, List, Tuple
 import json
-import re
 import requests
 from bs4 import BeautifulSoup
 from luncher.scrapers.base import BaseScraper
@@ -13,160 +12,99 @@ from luncher.core.models import DailyMenu, MenuItem, MenuItemType
 
 @ScraperRegistry.register('chilli_lime')
 class ChilliLimeScraper(BaseScraper):
-    """Scraper for Chilli & Lime restaurant (https://chilliandlime.choiceqr.com/online-menu)."""
+    """Scraper for Chilli & Lime restaurant (https://chilliandlime.choiceqr.com/online-menu).
+
+    Structure: Next.js page with JSON in <script id="__NEXT_DATA__">.
+      props.app.categories  — list of menu categories
+      props.app.menu        — list of all menu items
+
+    The lunch category has hurl='poledni-nabidka' (or name contains 'POLEDNÍ').
+    Each item has: name, description, price (in halíře, divide by 100 for Kč), category (id).
+    """
 
     async def scrape(self, target_date: Optional[date] = None) -> DailyMenu:
-        """Scrape Chilli & Lime menu for the specified date."""
         if target_date is None:
             target_date = date.today()
 
         try:
-            # Fetch the page
             response = requests.get(self.config.url, timeout=30)
             response.raise_for_status()
             soup = BeautifulSoup(response.text, 'lxml')
 
-            # Extract JSON data from Next.js __NEXT_DATA__ script tag
-            next_data_script = soup.find('script', id='__NEXT_DATA__')
+            script = soup.find('script', id='__NEXT_DATA__')
+            if not script:
+                return self.create_error_menu(target_date, "Nepodařilo se najít data menu (chybí __NEXT_DATA__)")
 
-            if not next_data_script:
-                return self.create_error_menu(target_date, "Could not find menu data")
+            data = json.loads(script.string)
+            app = data.get('props', {}).get('app', {})
 
-            try:
-                data = json.loads(next_data_script.string)
-            except json.JSONDecodeError:
-                return self.create_error_menu(target_date, "Failed to parse menu JSON")
+            cat_id = self._find_lunch_category_id(app)
+            if not cat_id:
+                return self.create_error_menu(target_date, "Nepodařilo se najít kategorii poledního menu")
 
-            # Navigate through the JSON structure to find menu items
-            # The structure is typically: props -> pageProps -> ... -> menu items
-            items = []
-            raw_text_parts = []
-
-            menu_data = self._extract_menu_from_json(data)
-
-            if menu_data:
-                items, raw_text_parts = self._parse_menu_data(menu_data, target_date)
+            items, raw_text = self._extract_items(app, cat_id)
 
             return DailyMenu(
                 restaurant_id=self.config.id,
                 restaurant_name=self.config.name,
                 date=target_date,
                 items=items,
-                raw_text="\n".join(raw_text_parts) if raw_text_parts else json.dumps(menu_data, ensure_ascii=False)[:500],
+                raw_text=raw_text,
                 scraped_at=datetime.now(),
                 url=self.config.url
             )
 
         except requests.RequestException as e:
-            return self.create_error_menu(target_date, f"Failed to fetch page: {e}")
+            return self.create_error_menu(target_date, f"Chyba načítání: {e}")
+        except (json.JSONDecodeError, KeyError) as e:
+            return self.create_error_menu(target_date, f"Chyba parsování JSON: {e}")
         except Exception as e:
-            return self.create_error_menu(target_date, f"Scraping error: {e}")
+            return self.create_error_menu(target_date, f"Chyba scrapování: {e}")
 
-    def _extract_menu_from_json(self, data: dict) -> Optional[dict]:
-        """Extract menu data from Next.js JSON structure."""
-        try:
-            # Try different common paths
-            if 'props' in data and 'pageProps' in data['props']:
-                page_props = data['props']['pageProps']
+    def _find_lunch_category_id(self, app: dict) -> Optional[str]:
+        """Find the lunch menu category ID."""
+        for cat in app.get('categories', []):
+            hurl = cat.get('hurl', '').lower()
+            name = cat.get('name', '').lower()
+            if 'poledni' in hurl or 'polední' in name or 'obed' in hurl:
+                return cat['_id']
+        # Fallback: first category
+        cats = app.get('categories', [])
+        return cats[0]['_id'] if cats else None
 
-                # Look for menu-related keys
-                for key in ['menu', 'menuData', 'categories', 'items', 'products']:
-                    if key in page_props:
-                        return page_props[key]
-
-                # If menu is nested deeper
-                for key, value in page_props.items():
-                    if isinstance(value, dict):
-                        for nested_key in ['menu', 'items', 'categories']:
-                            if nested_key in value:
-                                return value[nested_key]
-
-            return None
-        except (KeyError, TypeError):
-            return None
-
-    def _parse_menu_data(self, menu_data, target_date: date) -> tuple[List[MenuItem], List[str]]:
-        """Parse menu items from JSON data."""
+    def _extract_items(self, app: dict, cat_id: str) -> Tuple[List[MenuItem], str]:
+        """Extract items belonging to the lunch category."""
         items = []
-        raw_text_parts = []
+        raw_parts = []
 
-        # Get day name for filtering
-        day_name = self.get_czech_weekday_name(target_date)
+        for item in app.get('menu', []):
+            if item.get('category') != cat_id:
+                continue
 
-        # Handle different JSON structures
-        if isinstance(menu_data, list):
-            for item_data in menu_data:
-                menu_item, raw_text = self._parse_menu_item_json(item_data)
-                if menu_item:
-                    items.append(menu_item)
-                    if raw_text:
-                        raw_text_parts.append(raw_text)
+            name = item.get('name', '').strip()
+            description = (item.get('description') or '').strip()
+            # Price is stored in halíře (1/100 Kč)
+            price_raw = item.get('price', 0)
+            price = float(price_raw) / 100 if price_raw else None
 
-        elif isinstance(menu_data, dict):
-            # Check if it has categories
-            if 'categories' in menu_data:
-                for category in menu_data['categories']:
-                    if isinstance(category, dict) and 'items' in category:
-                        for item_data in category['items']:
-                            menu_item, raw_text = self._parse_menu_item_json(item_data)
-                            if menu_item:
-                                items.append(menu_item)
-                                if raw_text:
-                                    raw_text_parts.append(raw_text)
+            if not name:
+                continue
+
+            raw_parts.append(f"{name}{' - ' + description if description else ''} - {price} Kč")
+
+            nl = name.lower()
+            if any(w in nl for w in ['polévka', 'soup', 'vývar']):
+                item_type = MenuItemType.SOUP
+            elif any(w in nl for w in ['dezert', 'dessert']):
+                item_type = MenuItemType.DESSERT
             else:
-                # Try to find items directly
-                for key, value in menu_data.items():
-                    if isinstance(value, list):
-                        for item_data in value:
-                            menu_item, raw_text = self._parse_menu_item_json(item_data)
-                            if menu_item:
-                                items.append(menu_item)
-                                if raw_text:
-                                    raw_text_parts.append(raw_text)
+                item_type = MenuItemType.MAIN
 
-        return items, raw_text_parts
+            items.append(MenuItem(
+                name=name,
+                description=description or None,
+                price=price,
+                type=item_type
+            ))
 
-    def _parse_menu_item_json(self, item_data: dict) -> tuple[Optional[MenuItem], Optional[str]]:
-        """Parse a single menu item from JSON."""
-        if not isinstance(item_data, dict):
-            return None, None
-
-        # Extract common fields (field names may vary)
-        name = item_data.get('name') or item_data.get('title') or item_data.get('label')
-        description = item_data.get('description') or item_data.get('desc')
-        price_value = item_data.get('price') or item_data.get('cost')
-
-        if not name:
-            return None, None
-
-        # Parse price
-        price = None
-        if price_value:
-            if isinstance(price_value, (int, float)):
-                price = float(price_value)
-            elif isinstance(price_value, str):
-                price = self.normalize_price(price_value)
-
-        # Determine item type
-        item_type = MenuItemType.MAIN
-        category = (item_data.get('category') or item_data.get('type') or '').lower()
-
-        if 'soup' in category or 'polévka' in category:
-            item_type = MenuItemType.SOUP
-        elif 'dessert' in category or 'dezert' in category:
-            item_type = MenuItemType.DESSERT
-        elif 'side' in category or 'příloha' in category:
-            item_type = MenuItemType.SIDE
-
-        raw_text = f"{name}"
-        if description:
-            raw_text += f" - {description}"
-        if price:
-            raw_text += f" ({price} Kč)"
-
-        return MenuItem(
-            name=name,
-            description=description,
-            price=price,
-            type=item_type
-        ), raw_text
+        return items, "\n".join(raw_parts)
