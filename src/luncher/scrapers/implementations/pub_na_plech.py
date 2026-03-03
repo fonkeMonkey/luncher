@@ -96,8 +96,8 @@ class PubNaPlechScraper(BaseScraper):
             if not name_div:
                 continue
 
-            name = name_div.get_text(strip=True)
-            price_text = price_el.get_text(strip=True) if price_el else ''
+            name = self.clean_text(name_div)
+            price_text = self.clean_text(price_el) if price_el else ''
 
             # Skip section labels and drink items
             name_lower = name.lower()

@@ -72,8 +72,8 @@ class SpravovnaScraper(BaseScraper):
             if not food_el:
                 continue
 
-            name = food_el.get_text(strip=True)
-            price_text = prize_el.get_text(strip=True) if prize_el else ''
+            name = self.clean_text(food_el)
+            price_text = self.clean_text(prize_el) if prize_el else ''
 
             if not name:
                 continue

@@ -75,14 +75,14 @@ class UtelleruScraper(BaseScraper):
 
             # Name is in a <p> inside nazev5, or directly
             p_tag = name_div.find('p')
-            raw_name = (p_tag or name_div).get_text(strip=True)
+            raw_name = self.clean_text(p_tag or name_div)
             if not raw_name:
                 continue
 
             raw_parts.append(raw_name)
 
             # Price
-            price_text = price_div.get_text(strip=True) if price_div else ''
+            price_text = self.clean_text(price_div) if price_div else ''
             price = self._parse_price(price_text)
 
             # Clean name: remove leading number prefix ("1.", "2.", "Náš tip:")

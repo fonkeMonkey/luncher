@@ -82,9 +82,9 @@ class PorkeScraper(BaseScraper):
             price_el = li.find('span', class_='elementor-price-list-price')
             desc_el = li.find('p', class_=lambda c: c and 'description' in ' '.join(c))
 
-            name = title_el.get_text(strip=True) if title_el else ''
-            price_text = price_el.get_text(strip=True) if price_el else ''
-            description = desc_el.get_text(strip=True) if desc_el else None
+            name = self.clean_text(title_el) if title_el else ''
+            price_text = self.clean_text(price_el) if price_el else ''
+            description = self.clean_text(desc_el) if desc_el else None
 
             if not name:
                 continue

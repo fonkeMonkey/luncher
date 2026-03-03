@@ -27,6 +27,12 @@ class BaseScraper(ABC):
         """
         pass
 
+    @staticmethod
+    def clean_text(el) -> str:
+        """Get text from a BeautifulSoup element with spaces between child elements."""
+        text = el.get_text(separator=' ', strip=True)
+        return re.sub(r'\s+', ' ', text).strip()
+
     def normalize_price(self, text: str) -> Optional[float]:
         """
         Extract price from text like '120 Kč', '120,-', or '120'.
