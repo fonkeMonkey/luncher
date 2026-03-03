@@ -1,0 +1,30 @@
+restaurants:
+  - id: utelleru
+    name: "U Telleru"
+    url: "https://www.utelleru.cz/obedy/"
+    scraper_class: "luncher.scrapers.implementations.utelleru.UtelleruScraper"
+    enabled: true
+
+  - id: spravovna
+    name: "Spravovna"
+    url: "https://www.spravovna.cz/"
+    scraper_class: "luncher.scrapers.implementations.spravovna.SpravovnaScraper"
+    enabled: true
+
+  - id: pub_na_plech
+    name: "Pub Na Plech"
+    url: "http://www.pubnaplech.cz/"
+    scraper_class: "luncher.scrapers.implementations.pub_na_plech.PubNaPlechScraper"
+    enabled: true
+
+  - id: chilli_lime
+    name: "Chilli & Lime"
+    url: "https://chilliandlime.choiceqr.com/online-menu"
+    scraper_class: "luncher.scrapers.implementations.chilli_lime.ChilliLimeScraper"
+    enabled: true
+
+  - id: porke
+    name: "PORKE"
+    url: "https://www.porke.cz/"
+    scraper_class: "luncher.scrapers.implementations.porke.PorkeScraper"
+    enabled: true
