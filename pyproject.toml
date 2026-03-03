@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "luncher"
+version = "0.1.0"
+description = "Daily lunch menu aggregator for Czech restaurants"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "requests>=2.31.0",
+    "beautifulsoup4>=4.12.3",
+    "lxml>=5.1.0",
+    "playwright>=1.42.0",
+    "anthropic>=0.21.0",
+    "fastapi>=0.110.0",
+    "uvicorn>=0.27.0",
+    "typer>=0.9.0",
+    "rich>=13.7.0",
+    "pydantic>=2.6.0",
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0.1",
+    "python-dateutil>=2.8.2",
+]
+
+[project.scripts]
+luncher = "luncher.cli.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
