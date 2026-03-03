@@ -26,7 +26,11 @@ class SpravovnaScraper(BaseScraper):
             target_date = date.today()
 
         try:
-            response = requests.get(self.config.url, timeout=30)
+            response = requests.get(
+                self.config.url,
+                timeout=30,
+                headers={'Accept-Language': 'cs,cs-CZ;q=0.9'},
+            )
             response.raise_for_status()
             soup = BeautifulSoup(response.text, 'lxml')
 
