@@ -13,7 +13,7 @@ restaurants:
 
   - id: pub_na_plech
     name: "Pub Na Plech"
-    url: "http://www.pubnaplech.cz/"
+    url: "https://www.pubnaplech.cz/"
     scraper_class: "luncher.scrapers.implementations.pub_na_plech.PubNaPlechScraper"
     enabled: true
 

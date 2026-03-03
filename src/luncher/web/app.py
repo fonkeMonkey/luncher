@@ -51,7 +51,9 @@ async def fetch_menu(restaurant_config, use_cache: bool = True) -> DailyMenu:
         # Return error menu
         from luncher.scrapers.base import BaseScraper
         base_scraper = BaseScraper(restaurant_config)
-        return base_scraper.create_error_menu(date.today(), str(e))
+        import logging
+        logging.getLogger(__name__).error("Failed to fetch menu for %s: %s", restaurant_config.id, e)
+        return base_scraper.create_error_menu(date.today(), "Nepodařilo se načíst menu")
 
 
 async def fetch_all_menus(use_cache: bool = True) -> List[DailyMenu]:
@@ -117,8 +119,10 @@ async def compare_menus():
         comparison = await ai.compare_menus(menus)
         return {"comparison": comparison}
     except Exception as e:
+        import logging
+        logging.getLogger(__name__).error("AI comparison failed: %s", e)
         return JSONResponse(
-            {"error": f"AI unavailable: {e}"},
+            {"error": "AI analýza není momentálně dostupná"},
             status_code=503
         )
 

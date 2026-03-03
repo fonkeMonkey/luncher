@@ -252,7 +252,10 @@
                 const data = await response.json();
 
                 if (data.error) {
-                    content.innerHTML = `<div class="error-message">${data.error}</div>`;
+                    const div = document.createElement('div');
+                    div.className = 'error-message';
+                    div.textContent = data.error;
+                    content.replaceChildren(div);
                 } else {
                     content.textContent = data.comparison;
                 }

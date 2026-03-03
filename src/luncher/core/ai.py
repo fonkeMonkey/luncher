@@ -61,7 +61,9 @@ Odpověz pouze v češtině, bez anglických slov."""
             )
             return message.content[0].text
         except Exception as e:
-            return f"Chyba při generování shrnutí: {e}"
+            import logging
+            logging.getLogger(__name__).error("summarize_menu failed: %s", e)
+            return "Chyba při generování shrnutí."
 
     async def compare_menus(self, menus: List[DailyMenu]) -> str:
         """
@@ -107,7 +109,9 @@ Odpověz pouze v češtině, ve struktuře uvedené výše. Buď konkrétní a p
             )
             return message.content[0].text
         except Exception as e:
-            return f"Chyba při porovnání menu: {e}"
+            import logging
+            logging.getLogger(__name__).error("compare_menus failed: %s", e)
+            return "Chyba při porovnání menu."
 
     async def answer_question(self, menus: List[DailyMenu], question: str) -> str:
         """
@@ -150,4 +154,6 @@ Odpověz v češtině, stručně a konkrétně."""
             )
             return message.content[0].text
         except Exception as e:
-            return f"Chyba při odpovídání na dotaz: {e}"
+            import logging
+            logging.getLogger(__name__).error("answer_question failed: %s", e)
+            return "Chyba při odpovídání na dotaz."

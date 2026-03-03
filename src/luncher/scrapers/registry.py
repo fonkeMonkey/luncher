@@ -49,7 +49,13 @@ class ScraperRegistry:
         scraper_class = cls.get(config.id)
 
         if not scraper_class:
-            # Try to dynamically import the scraper class
+            # Only allow imports from the known scrapers package
+            allowed_prefix = "luncher.scrapers.implementations."
+            if not config.scraper_class.startswith(allowed_prefix):
+                raise ValueError(
+                    f"Scraper class '{config.scraper_class}' is not in the allowed package. "
+                    f"Must start with '{allowed_prefix}'"
+                )
             try:
                 module_path, class_name = config.scraper_class.rsplit('.', 1)
                 module = importlib.import_module(module_path)
