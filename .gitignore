@@ -49,3 +49,6 @@ Thumbs.db
 
 # Playwright
 .playwright/
+
+# Generated static site (produced by CI)
+docs/

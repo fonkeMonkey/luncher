@@ -226,11 +226,17 @@
         <div class="ai-section">
             <div class="ai-header">
                 <div class="ai-title">🤖 AI Doporučení</div>
+                {% if not ai_comparison %}
                 <button class="ai-button" onclick="loadAIComparison()">Porovnat menu</button>
+                {% endif %}
             </div>
+            {% if ai_comparison %}
+            <div class="ai-content">{{ ai_comparison }}</div>
+            {% else %}
             <div class="ai-content" id="ai-content">
                 Klikni na tlačítko výše pro AI analýzu dnešních menu.
             </div>
+            {% endif %}
         </div>
 
         <div class="footer">
