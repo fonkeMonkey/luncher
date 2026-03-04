@@ -100,6 +100,11 @@ class ChilliLimeScraper(BaseScraper):
             else:
                 item_type = MenuItemType.MAIN
 
+            # For the generic soup label, show the actual soup name from description
+            if item_type == MenuItemType.SOUP and description and 'polední' in nl:
+                name = description
+                description = None
+
             items.append(MenuItem(
                 name=name,
                 description=description or None,
