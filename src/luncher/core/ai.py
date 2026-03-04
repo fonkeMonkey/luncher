@@ -111,6 +111,8 @@ Odpověz pouze v češtině, ve struktuře uvedené výše. Buď konkrétní a p
         except Exception as e:
             import logging
             logging.getLogger(__name__).error("compare_menus failed: %s", e)
+            if "credit balance is too low" in str(e):
+                return "AI analýza není dostupná – došly kredity. Dobij je na console.anthropic.com/settings/billing."
             return "Chyba při porovnání menu."
 
     async def answer_question(self, menus: List[DailyMenu], question: str) -> str:
