@@ -107,6 +107,12 @@
             font-weight: 500;
         }
 
+        .item-description {
+            font-size: 0.85em;
+            color: #777;
+            margin-top: 2px;
+        }
+
         .item-price {
             color: #10b981;
             font-weight: 600;
@@ -210,6 +216,7 @@
                     <li class="menu-item">
                         <span class="item-name {% if item.type.value == 'soup' %}item-soup{% endif %}">
                             {% if item.type.value == 'soup' %}🍲 {% endif %}{{ item.name }}
+                            {% if item.description %}<div class="item-description">{{ item.description }}</div>{% endif %}
                         </span>
                         {% if item.price %}
                         <span class="item-price">{{ item.price|int }} Kč</span>
