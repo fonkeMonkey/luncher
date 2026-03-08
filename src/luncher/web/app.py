@@ -42,8 +42,8 @@ async def fetch_menu(restaurant_config, use_cache: bool = True) -> DailyMenu:
         scraper = ScraperRegistry.create(restaurant_config)
         menu = await scraper.scrape_with_healing()
 
-        # Cache the result
-        if use_cache:
+        # Only cache successful results
+        if use_cache and menu.is_valid:
             cache.set(menu)
 
         return menu
