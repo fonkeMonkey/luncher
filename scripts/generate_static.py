@@ -1,6 +1,7 @@
 """Generate a static HTML page with today's lunch menus for GitHub Pages."""
 
 import asyncio
+import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -18,6 +19,22 @@ async def main() -> None:
     print("Fetching menus...")
     menus = await fetch_all_menus(use_cache=False)
     print(f"Fetched {len(menus)} menus")
+
+    # Self-healing: open PRs for any scrapers that fell back to AI extraction
+    if os.getenv("GITHUB_ACTIONS") == "true":
+        broken = [m for m in menus if m.raw_text.startswith("[AI fallback]")]
+        if broken:
+            api_key = os.getenv("ANTHROPIC_API_KEY")
+            if api_key:
+                from luncher.core.healer import ScraperHealer
+                healer = ScraperHealer(api_key=api_key)
+                for menu in broken:
+                    print(f"Opening healing PR for broken scraper: {menu.restaurant_id}")
+                    pr_url = healer.heal(menu.restaurant_id)
+                    if pr_url:
+                        print(f"PR opened: {pr_url}")
+                    else:
+                        print(f"Could not open PR for {menu.restaurant_id}")
 
     ai_comparison = None
     try:

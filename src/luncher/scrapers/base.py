@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 from datetime import date, datetime
+from pathlib import Path
 from typing import Optional
 import re
 from luncher.core.models import DailyMenu, MenuItem, MenuItemType, RestaurantConfig
@@ -160,6 +161,12 @@ Return ONLY the JSON array, no other text."""
                 max_tokens=1500,
                 messages=[{"role": "user", "content": prompt}]
             )
+
+            # Save HTML so the healer can use it later to generate a code fix
+            try:
+                Path(f"/tmp/luncher_fallback_{self.config.id}.html").write_text(html, encoding="utf-8")
+            except Exception:
+                pass
 
             raw_response = message.content[0].text.strip()
             items_data = json.loads(raw_response)
