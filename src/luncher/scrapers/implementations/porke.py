@@ -25,6 +25,23 @@ class PorkeScraper(BaseScraper):
     TAB_SELECTOR = 'a[href="#tabid_238_1"]'
     PANEL_ID = 'tabid_238_1'
 
+    async def get_html_for_fallback(self) -> str:
+        """Fetch rendered HTML via Playwright (with tab clicked) for AI fallback."""
+        from playwright.async_api import async_playwright
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            await page.goto(self.config.url, timeout=30000)
+            await page.wait_for_load_state('networkidle')
+            try:
+                await page.click(self.TAB_SELECTOR)
+                await page.wait_for_timeout(1000)
+            except Exception:
+                pass
+            content = await page.content()
+            await browser.close()
+        return content
+
     async def scrape(self, target_date: Optional[date] = None) -> DailyMenu:
         if target_date is None:
             target_date = date.today()

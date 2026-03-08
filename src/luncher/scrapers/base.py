@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from datetime import date, datetime
 from typing import Optional
 import re
-from luncher.core.models import DailyMenu, RestaurantConfig
+from luncher.core.models import DailyMenu, MenuItem, MenuItemType, RestaurantConfig
 
 
 class BaseScraper(ABC):
@@ -106,3 +106,116 @@ class BaseScraper(ABC):
             url=self.config.url,
             error=error_message
         )
+
+    async def get_html_for_fallback(self) -> str:
+        """
+        Fetch raw page HTML for AI fallback extraction.
+
+        Override this in scrapers that require JavaScript rendering (e.g. Playwright).
+        """
+        import requests
+        response = requests.get(self.config.url, timeout=30)
+        response.raise_for_status()
+        return response.text
+
+    async def _ai_fallback_scrape(self, target_date: date, original_error: str) -> DailyMenu:
+        """
+        Use Claude AI to extract menu items when the normal scraper fails.
+
+        Fetches the page HTML, strips noise, and asks Claude to return menu
+        items as JSON. Falls back to the original error menu if AI also fails.
+        """
+        import json
+        import logging
+        logger = logging.getLogger(__name__)
+
+        try:
+            from luncher.config.settings import settings
+            if not settings.anthropic_api_key:
+                return self.create_error_menu(target_date, original_error)
+
+            import anthropic
+            from bs4 import BeautifulSoup
+
+            html = await self.get_html_for_fallback()
+
+            # Strip scripts/styles to reduce token count
+            soup = BeautifulSoup(html, 'lxml')
+            for tag in soup(['script', 'style', 'noscript', 'meta', 'link']):
+                tag.decompose()
+            clean_html = str(soup)[:15000]
+
+            prompt = f"""Extract all lunch menu items from this Czech restaurant HTML page.
+Return ONLY a JSON array. Each element: {{"name": "...", "description": "..." or null, "price": 120.0 or null, "type": "soup" | "main" | "dessert" | "other"}}
+Identify soups by keywords: polévka, vývar, krém. Desserts: dezert, moučník, zákusek.
+
+HTML:
+{clean_html}
+
+Return ONLY the JSON array, no other text."""
+
+            client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+            message = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=1500,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            raw_response = message.content[0].text.strip()
+            items_data = json.loads(raw_response)
+
+            items = []
+            for item_data in items_data:
+                name = item_data.get('name', '').strip()
+                if not name:
+                    continue
+                try:
+                    item_type = MenuItemType(item_data.get('type', 'other'))
+                except ValueError:
+                    item_type = MenuItemType.OTHER
+                items.append(MenuItem(
+                    name=name,
+                    description=item_data.get('description') or None,
+                    price=item_data.get('price'),
+                    type=item_type
+                ))
+
+            if not items:
+                return self.create_error_menu(target_date, original_error)
+
+            logger.info("AI fallback extracted %d items for %s", len(items), self.config.id)
+            return DailyMenu(
+                restaurant_id=self.config.id,
+                restaurant_name=self.config.name,
+                date=target_date,
+                items=items,
+                raw_text=f"[AI fallback] {raw_response[:500]}",
+                scraped_at=datetime.now(),
+                url=self.config.url
+            )
+
+        except Exception as e:
+            logger.error("AI fallback failed for %s: %s", self.config.id, e)
+            return self.create_error_menu(target_date, original_error)
+
+    async def scrape_with_healing(self, target_date: Optional[date] = None) -> DailyMenu:
+        """
+        Scrape with AI self-healing fallback.
+
+        Runs the normal scraper first. If it returns an error or zero items,
+        automatically retries using Claude AI to extract the menu from raw HTML.
+        """
+        import logging
+        if target_date is None:
+            target_date = date.today()
+
+        menu = await self.scrape(target_date)
+
+        if not menu.is_valid:
+            logging.getLogger(__name__).warning(
+                "Scraper failed for %s (%s), trying AI fallback",
+                self.config.id, menu.error
+            )
+            menu = await self._ai_fallback_scrape(target_date, menu.error or "No items found")
+
+        return menu
