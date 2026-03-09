@@ -88,18 +88,15 @@ Odpověz pouze v češtině, bez anglických slov."""
                 menu_text += f"  • {item}\n"
             menu_text += "\n"
 
-        prompt = f"""Analyzuj následující polední menu z různých restaurací a poskytni:
-
-1. Stručné srovnání (co je zajímavé, jaké jsou rozdíly v nabídce)
-2. Doporučení podle různých preferencí:
-   - Nejlepší poměr cena/výkon
+        prompt = f"""Analyzuj následující polední menu z různých restaurací a poskytni doporučení podle těchto preferencí:
    - Nejvíce zdravé/lehké jídlo
    - Nejzajímavější/netradiční nabídka
    - Doporučení pro vegetariány (pokud je něco dostupné)
+   - Nejlepší poměr cena/výkon
 
 {menu_text}
 
-Odpověz pouze v češtině, ve struktuře uvedené výše. Buď konkrétní a praktický."""
+Odpověz pouze v češtině, pouze s doporučeními ve struktuře uvedené výše. Buď konkrétní a praktický. Vynech jakékoliv úvodní srovnání nebo souhrn."""
 
         try:
             message = self.client.messages.create(
