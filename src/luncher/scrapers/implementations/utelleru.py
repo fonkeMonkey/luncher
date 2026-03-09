@@ -66,7 +66,7 @@ class UtelleruScraper(BaseScraper):
         items = []
         raw_parts = []
 
-        for p4 in section.find_all('div', class_='polozka4_broken'):
+        for p4 in section.find_all('div', class_='polozka4'):
             name_div = p4.find('div', class_='nazev5')
             price_div = p4.find('div', class_='cena')
 
