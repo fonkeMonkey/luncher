@@ -66,7 +66,7 @@ class UtelleruScraper(BaseScraper):
         items = []
         raw_parts = []
 
-        for p4 in section.find_all('div', class_='polozka4_broken'):
+        for p4 in section.find_all('div', class_='polozka4'):
             name_div = p4.find('div', class_='nazev5')
             price_div = p4.find('div', class_='cena')
 
@@ -88,10 +88,12 @@ class UtelleruScraper(BaseScraper):
             # Clean name: remove leading number prefix ("1.", "2.", "Náš tip:")
             name = re.sub(r'^\d+\.\s*', '', raw_name).strip()
             name = re.sub(r'^náš tip:\s*', '', name, flags=re.IGNORECASE).strip()
+            # Remove leading "veg" label
+            name = re.sub(r'^veg\s+', '', name, flags=re.IGNORECASE).strip()
 
             # Item type
             nl = raw_name.lower()
-            if any(w in nl for w in ['polévka', 'vývar', 'polívka']):
+            if any(w in nl for w in ['polévka', 'vývar', 'polívka', 'česnečka', 'bramboračka']):
                 item_type = MenuItemType.SOUP
             elif any(w in nl for w in ['dezert', 'moučník', 'zákusek']):
                 item_type = MenuItemType.DESSERT
