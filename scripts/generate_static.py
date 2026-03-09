@@ -22,7 +22,12 @@ async def main() -> None:
 
     # Self-healing: open PRs for any scrapers that fell back to AI extraction
     if os.getenv("GITHUB_ACTIONS") == "true":
-        broken = [m for m in menus if m.raw_text.startswith("[AI fallback]")]
+        from pathlib import Path as _Path
+        broken = [
+            m for m in menus
+            if m.raw_text.startswith("[AI fallback]")
+            or (not m.is_valid and _Path(f"/tmp/luncher_fallback_{m.restaurant_id}.html").exists())
+        ]
         if broken:
             api_key = os.getenv("ANTHROPIC_API_KEY")
             if api_key:

@@ -169,6 +169,10 @@ Return ONLY the JSON array, no other text."""
                 pass
 
             raw_response = message.content[0].text.strip()
+            # Strip markdown code fences if Claude wrapped the JSON
+            if raw_response.startswith("```"):
+                raw_response = re.sub(r'^```(?:json)?\s*', '', raw_response)
+                raw_response = re.sub(r'\s*```$', '', raw_response).strip()
             items_data = json.loads(raw_response)
 
             items = []
