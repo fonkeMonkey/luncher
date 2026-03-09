@@ -87,19 +87,26 @@ Return ONLY the complete fixed Python file with no explanation, no markdown fenc
             )
             subprocess.run(["git", "push", "origin", branch], check=True)
 
-            result = subprocess.run(
-                [
-                    "gh", "pr", "create",
-                    "--title", f"fix: auto-heal {restaurant_id} scraper",
-                    "--body", (
-                        f"The **{restaurant_id}** scraper broke today because the restaurant website changed its HTML structure.\n\n"
-                        "The self-healing mechanism fetched the live page, analysed the new structure, and generated this fix automatically.\n\n"
-                        "**Please review the diff before merging.**"
-                    ),
-                    "--base", "master",
-                ],
-                capture_output=True, text=True, check=True
-            )
+            gh_cmd = [
+                "gh", "pr", "create",
+                "--title", f"fix: auto-heal {restaurant_id} scraper",
+                "--body", (
+                    f"The **{restaurant_id}** scraper broke today because the restaurant website changed its HTML structure.\n\n"
+                    "The self-healing mechanism fetched the live page, analysed the new structure, and generated this fix automatically.\n\n"
+                    "**Please review the diff before merging.**"
+                ),
+                "--base", "master",
+                "--head", branch,
+            ]
+            repo = os.environ.get("GITHUB_REPOSITORY")
+            if repo:
+                gh_cmd += ["--repo", repo]
+
+            result = subprocess.run(gh_cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                logger.error("gh pr create failed for %s: %s", restaurant_id, result.stderr.strip())
+                return None
+
             pr_url = result.stdout.strip()
             logger.info("Opened healing PR for %s: %s", restaurant_id, pr_url)
             return pr_url
