@@ -85,7 +85,7 @@ Return ONLY the complete fixed Python file with no explanation, no markdown fenc
                 ["git", "commit", "-m", f"fix: auto-heal {restaurant_id} scraper\n\nWebsite structure changed; selectors updated by self-healing AI."],
                 check=True
             )
-            subprocess.run(["git", "push", "origin", branch], check=True)
+            subprocess.run(["git", "push", "--force", "origin", branch], check=True)
 
             gh_cmd = [
                 "gh", "pr", "create",
