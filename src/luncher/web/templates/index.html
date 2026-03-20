@@ -224,6 +224,37 @@
         .health-dot.filled-4 { background: #a3e635; }
         .health-dot.filled-5 { background: #34d399; }
 
+        /* ── Pin button ── */
+        .restaurant-name {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .pin-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.1rem;
+            line-height: 1;
+            opacity: 0.25;
+            transition: opacity 0.15s, transform 0.15s;
+            padding: 0 0 0 8px;
+            flex-shrink: 0;
+        }
+
+        .pin-btn:hover { opacity: 0.6; transform: scale(1.15); }
+
+        .menu-card.pinned .pin-btn { opacity: 1; }
+
+        .menu-card.pinned {
+            box-shadow: 0 0 0 2px #f43f5e, 0 8px 24px rgba(244,63,94,0.15);
+        }
+
+        .menu-card.pinned .card-accent {
+            background: linear-gradient(90deg, #f43f5e, #fb7185) !important;
+        }
+
         .error-message {
             color: #ef4444;
             font-size: 0.9rem;
@@ -331,10 +362,13 @@
     <div class="container">
         <div class="menus-grid">
             {% for menu in menus %}
-            <div class="menu-card {% if not menu.is_valid %}error{% endif %}">
+            <div class="menu-card {% if not menu.is_valid %}error{% endif %}" data-id="{{ menu.restaurant_id }}">
                 <div class="card-accent"></div>
                 <div class="card-body">
-                    <div class="restaurant-name">{{ menu.restaurant_name }}</div>
+                    <div class="restaurant-name">
+                        <span>{{ menu.restaurant_name }}</span>
+                        <button class="pin-btn" onclick="togglePin(this)" title="Připnout restauraci">♥</button>
+                    </div>
 
                     {% if menu.is_valid %}
                     <ul class="menu-items">
@@ -397,6 +431,52 @@
     </div>
 
     <script>
+        const PINS_KEY = 'luncher_pins';
+
+        function getPins() {
+            try { return new Set(JSON.parse(localStorage.getItem(PINS_KEY) || '[]')); }
+            catch { return new Set(); }
+        }
+
+        function savePins(pins) {
+            localStorage.setItem(PINS_KEY, JSON.stringify([...pins]));
+        }
+
+        function togglePin(btn) {
+            const card = btn.closest('.menu-card');
+            const id = card.dataset.id;
+            const pins = getPins();
+            if (pins.has(id)) {
+                pins.delete(id);
+                card.classList.remove('pinned');
+            } else {
+                pins.add(id);
+                card.classList.add('pinned');
+            }
+            savePins(pins);
+            reorderCards();
+        }
+
+        function reorderCards() {
+            const grid = document.querySelector('.menus-grid');
+            const cards = [...grid.querySelectorAll('.menu-card')];
+            cards.sort((a, b) => {
+                const ap = a.classList.contains('pinned') ? 0 : 1;
+                const bp = b.classList.contains('pinned') ? 0 : 1;
+                return ap - bp;
+            });
+            cards.forEach(c => grid.appendChild(c));
+        }
+
+        // Restore pins on load
+        (function() {
+            const pins = getPins();
+            document.querySelectorAll('.menu-card').forEach(card => {
+                if (pins.has(card.dataset.id)) card.classList.add('pinned');
+            });
+            reorderCards();
+        })();
+
         async function loadAIComparison() {
             const button = document.querySelector('.ai-button');
             const content = document.getElementById('ai-content');
