@@ -1,5 +1,6 @@
 """Claude AI integration for menu analysis and summaries."""
 
+import json
 from typing import List, Optional
 from luncher.core.models import DailyMenu
 from luncher.config.settings import settings
@@ -156,3 +157,51 @@ Odpověz v češtině, stručně a konkrétně."""
             import logging
             logging.getLogger(__name__).error("answer_question failed: %s", e)
             return "Chyba při odpovídání na dotaz."
+
+    async def rate_menu_items(self, menus: List[DailyMenu]) -> None:
+        """
+        Rate each menu item for dietary healthiness (1-5) in place.
+
+        1 = very unhealthy, 5 = very healthy.
+        """
+        valid_menus = [m for m in menus if m.is_valid]
+        if not valid_menus:
+            return
+
+        items_list = [
+            {"restaurant_id": menu.restaurant_id, "item_name": item.name, "type": item.type.value}
+            for menu in valid_menus
+            for item in menu.items
+        ]
+        if not items_list:
+            return
+
+        prompt = f"""Rate each food item for dietary healthiness on a scale 1-5:
+1 = very unhealthy (fried, heavy, processed)
+2 = below average
+3 = average / balanced
+4 = healthy
+5 = very healthy (salads, vegetables, light)
+
+Items (JSON):
+{json.dumps(items_list, ensure_ascii=False)}
+
+Reply ONLY with a JSON array, no other text:
+[{{"restaurant_id": "...", "item_name": "...", "rating": <1-5>}}, ...]"""
+
+        try:
+            message = self.client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=2000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            ratings = json.loads(message.content[0].text.strip())
+            rating_map = {(r["restaurant_id"], r["item_name"]): r["rating"] for r in ratings}
+            for menu in valid_menus:
+                for item in menu.items:
+                    rating = rating_map.get((menu.restaurant_id, item.name))
+                    if rating is not None:
+                        item.health_rating = int(rating)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error("rate_menu_items failed: %s", e)

@@ -62,9 +62,17 @@ async def fetch_all_menus(use_cache: bool = True) -> List[DailyMenu]:
 
     # Fetch all menus concurrently
     tasks = [fetch_menu(resto, use_cache) for resto in restaurants]
-    menus = await asyncio.gather(*tasks)
+    menus = list(await asyncio.gather(*tasks))
 
-    return list(menus)
+    # Rate items for healthiness in one batched AI call
+    try:
+        ai = MenuAIProcessor()
+        await ai.rate_menu_items(menus)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Health rating skipped: %s", e)
+
+    return menus
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -100,7 +108,8 @@ async def get_today_menus(no_cache: bool = False):
                     "name": item.name,
                     "description": item.description,
                     "price": item.price,
-                    "type": item.type.value
+                    "type": item.type.value,
+                    "health_rating": item.health_rating,
                 }
                 for item in menu.items
             ]

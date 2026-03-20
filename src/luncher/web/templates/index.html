@@ -199,6 +199,31 @@
             margin-top: 1px;
         }
 
+        .item-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        .health-rating {
+            display: flex;
+            gap: 2px;
+        }
+
+        .health-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #e2e8f0;
+        }
+
+        .health-dot.filled-1, .health-dot.filled-2 { background: #f87171; }
+        .health-dot.filled-3 { background: #fb923c; }
+        .health-dot.filled-4 { background: #a3e635; }
+        .health-dot.filled-5 { background: #34d399; }
+
         .error-message {
             color: #ef4444;
             font-size: 0.9rem;
@@ -324,9 +349,18 @@
                                 <div class="item-description">{{ item.description }}</div>
                                 {% endif %}
                             </div>
-                            {% if item.price %}
-                            <span class="item-price">{{ item.price|int }} Kč</span>
-                            {% endif %}
+                            <div class="item-right">
+                                {% if item.price %}
+                                <span class="item-price">{{ item.price|int }} Kč</span>
+                                {% endif %}
+                                {% if item.health_rating %}
+                                <div class="health-rating" title="Zdravost: {{ item.health_rating }}/5">
+                                    {% for i in range(1, 6) %}
+                                    <div class="health-dot {% if i <= item.health_rating %}filled-{{ item.health_rating }}{% endif %}"></div>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
                         </li>
                         {% endfor %}
                     </ul>
