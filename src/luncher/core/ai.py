@@ -168,13 +168,19 @@ Odpověz v češtině, stručně a konkrétně."""
         if not valid_menus:
             return
 
-        items_list = [
-            {"restaurant_id": menu.restaurant_id, "item_name": item.name, "type": item.type.value}
+        # Build flat indexed list of all items for reliable index-based matching
+        all_items = [
+            (menu, item)
             for menu in valid_menus
             for item in menu.items
         ]
-        if not items_list:
+        if not all_items:
             return
+
+        items_list = [
+            {"idx": i, "item_name": item.name, "type": item.type.value}
+            for i, (_, item) in enumerate(all_items)
+        ]
 
         prompt = f"""Rate each food item for dietary healthiness on a scale 1-5:
 1 = very unhealthy (fried, heavy, processed)
@@ -186,8 +192,8 @@ Odpověz v češtině, stručně a konkrétně."""
 Items (JSON):
 {json.dumps(items_list, ensure_ascii=False)}
 
-Reply ONLY with a JSON array, no other text. Include a short reason in Czech (max 8 words):
-[{{"restaurant_id": "...", "item_name": "...", "rating": <1-5>, "reason": "..."}}, ...]"""
+Reply ONLY with a JSON array, no other text. Keep the same idx. Include a short reason in Czech (max 8 words):
+[{{"idx": 0, "rating": <1-5>, "reason": "..."}}, ...]"""
 
         try:
             message = self.client.messages.create(
@@ -202,17 +208,12 @@ Reply ONLY with a JSON array, no other text. Include a short reason in Czech (ma
             if start == -1 or end == -1:
                 raise ValueError(f"No JSON array found in response: {raw[:200]}")
             ratings = json.loads(raw[start:end + 1])
-            rating_map = {(r["restaurant_id"], r["item_name"]): r for r in ratings}
-            for menu in valid_menus:
-                for item in menu.items:
-                    entry = rating_map.get((menu.restaurant_id, item.name))
-                    if entry is None:
-                        # Fallback: case-insensitive match
-                        key = next((k for k in rating_map if k[0] == menu.restaurant_id and k[1].lower() == item.name.lower()), None)
-                        entry = rating_map.get(key) if key else None
-                    if entry is not None:
-                        item.health_rating = int(entry["rating"])
-                        item.health_rating_reason = entry.get("reason")
+            for entry in ratings:
+                idx = entry.get("idx")
+                if idx is not None and 0 <= idx < len(all_items):
+                    _, item = all_items[idx]
+                    item.health_rating = int(entry["rating"])
+                    item.health_rating_reason = entry.get("reason")
         except Exception as e:
             import logging
             logging.getLogger(__name__).error("rate_menu_items failed: %s", e)
