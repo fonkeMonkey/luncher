@@ -195,7 +195,12 @@ Reply ONLY with a JSON array, no other text:
                 max_tokens=2000,
                 messages=[{"role": "user", "content": prompt}]
             )
-            ratings = json.loads(message.content[0].text.strip())
+            raw = message.content[0].text.strip()
+            # Strip markdown code fences if present
+            if raw.startswith("```"):
+                raw = raw.split("\n", 1)[1] if "\n" in raw else raw
+                raw = raw.rsplit("```", 1)[0].strip()
+            ratings = json.loads(raw)
             rating_map = {(r["restaurant_id"], r["item_name"]): r["rating"] for r in ratings}
             for menu in valid_menus:
                 for item in menu.items:
