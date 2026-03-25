@@ -196,8 +196,6 @@ Reply ONLY with a JSON array, no other text. Include a short reason in Czech (ma
                 messages=[{"role": "user", "content": prompt}]
             )
             raw = message.content[0].text.strip()
-            import logging as _logging
-            _logging.getLogger(__name__).info("rate_menu_items raw response: %s", raw[:500])
             # Extract JSON array robustly — find first [ and last ]
             start = raw.find("[")
             end = raw.rfind("]")
@@ -208,6 +206,10 @@ Reply ONLY with a JSON array, no other text. Include a short reason in Czech (ma
             for menu in valid_menus:
                 for item in menu.items:
                     entry = rating_map.get((menu.restaurant_id, item.name))
+                    if entry is None:
+                        # Fallback: case-insensitive match
+                        key = next((k for k in rating_map if k[0] == menu.restaurant_id and k[1].lower() == item.name.lower()), None)
+                        entry = rating_map.get(key) if key else None
                     if entry is not None:
                         item.health_rating = int(entry["rating"])
                         item.health_rating_reason = entry.get("reason")
