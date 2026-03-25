@@ -196,11 +196,12 @@ Reply ONLY with a JSON array, no other text. Include a short reason in Czech (ma
                 messages=[{"role": "user", "content": prompt}]
             )
             raw = message.content[0].text.strip()
-            # Strip markdown code fences if present
-            if raw.startswith("```"):
-                raw = raw.split("\n", 1)[1] if "\n" in raw else raw
-                raw = raw.rsplit("```", 1)[0].strip()
-            ratings = json.loads(raw)
+            # Extract JSON array robustly — find first [ and last ]
+            start = raw.find("[")
+            end = raw.rfind("]")
+            if start == -1 or end == -1:
+                raise ValueError("No JSON array found in response")
+            ratings = json.loads(raw[start:end + 1])
             rating_map = {(r["restaurant_id"], r["item_name"]): r for r in ratings}
             for menu in valid_menus:
                 for item in menu.items:
