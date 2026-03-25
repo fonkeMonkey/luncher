@@ -432,14 +432,18 @@
 
     <script>
         const PINS_KEY = 'luncher_pins';
+        const TODAY = '{{ today.isoformat() }}';
 
         function getPins() {
-            try { return new Set(JSON.parse(localStorage.getItem(PINS_KEY) || '[]')); }
-            catch { return new Set(); }
+            try {
+                const stored = JSON.parse(localStorage.getItem(PINS_KEY) || '{}');
+                if (stored.date !== TODAY) return new Set();
+                return new Set(stored.ids || []);
+            } catch { return new Set(); }
         }
 
         function savePins(pins) {
-            localStorage.setItem(PINS_KEY, JSON.stringify([...pins]));
+            localStorage.setItem(PINS_KEY, JSON.stringify({ date: TODAY, ids: [...pins] }));
         }
 
         function togglePin(btn) {
