@@ -192,15 +192,17 @@ Reply ONLY with a JSON array, no other text. Include a short reason in Czech (ma
         try:
             message = self.client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=2000,
+                max_tokens=4000,
                 messages=[{"role": "user", "content": prompt}]
             )
             raw = message.content[0].text.strip()
+            import logging as _logging
+            _logging.getLogger(__name__).info("rate_menu_items raw response: %s", raw[:500])
             # Extract JSON array robustly — find first [ and last ]
             start = raw.find("[")
             end = raw.rfind("]")
             if start == -1 or end == -1:
-                raise ValueError("No JSON array found in response")
+                raise ValueError(f"No JSON array found in response: {raw[:200]}")
             ratings = json.loads(raw[start:end + 1])
             rating_map = {(r["restaurant_id"], r["item_name"]): r for r in ratings}
             for menu in valid_menus:
