@@ -23,6 +23,7 @@ class MenuItem:
     price: Optional[float] = None
     type: MenuItemType = MenuItemType.OTHER
     health_rating: Optional[int] = None  # 1-5, 5 = healthiest
+    health_rating_reason: Optional[str] = None
 
     def __str__(self) -> str:
         parts = [self.name]

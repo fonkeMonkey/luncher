@@ -186,8 +186,8 @@ Odpověz v češtině, stručně a konkrétně."""
 Items (JSON):
 {json.dumps(items_list, ensure_ascii=False)}
 
-Reply ONLY with a JSON array, no other text:
-[{{"restaurant_id": "...", "item_name": "...", "rating": <1-5>}}, ...]"""
+Reply ONLY with a JSON array, no other text. Include a short reason in Czech (max 8 words):
+[{{"restaurant_id": "...", "item_name": "...", "rating": <1-5>, "reason": "..."}}, ...]"""
 
         try:
             message = self.client.messages.create(
@@ -201,12 +201,13 @@ Reply ONLY with a JSON array, no other text:
                 raw = raw.split("\n", 1)[1] if "\n" in raw else raw
                 raw = raw.rsplit("```", 1)[0].strip()
             ratings = json.loads(raw)
-            rating_map = {(r["restaurant_id"], r["item_name"]): r["rating"] for r in ratings}
+            rating_map = {(r["restaurant_id"], r["item_name"]): r for r in ratings}
             for menu in valid_menus:
                 for item in menu.items:
-                    rating = rating_map.get((menu.restaurant_id, item.name))
-                    if rating is not None:
-                        item.health_rating = int(rating)
+                    entry = rating_map.get((menu.restaurant_id, item.name))
+                    if entry is not None:
+                        item.health_rating = int(entry["rating"])
+                        item.health_rating_reason = entry.get("reason")
         except Exception as e:
             import logging
             logging.getLogger(__name__).error("rate_menu_items failed: %s", e)

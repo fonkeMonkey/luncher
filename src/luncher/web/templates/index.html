@@ -388,7 +388,7 @@
                                 <span class="item-price">{{ item.price|int }} Kč</span>
                                 {% endif %}
                                 {% if item.health_rating %}
-                                <div class="health-rating" title="Zdravost: {{ item.health_rating }}/5">
+                                <div class="health-rating" title="{% if item.health_rating_reason %}{{ item.health_rating_reason }}{% else %}Zdravost: {{ item.health_rating }}/5{% endif %}">
                                     {% for i in range(1, 6) %}
                                     <div class="health-dot {% if i <= item.health_rating %}filled-{{ item.health_rating }}{% endif %}"></div>
                                     {% endfor %}
