@@ -192,7 +192,7 @@ Odpověz v češtině, stručně a konkrétně."""
 Items (JSON):
 {json.dumps(items_list, ensure_ascii=False)}
 
-Reply ONLY with a JSON array, no other text. Keep the same idx. Include a short reason in Czech (max 8 words):
+Reply ONLY with a JSON array, no other text. Keep the same idx. Include a short reason in Czech (max 6 words, no quotes inside the text):
 [{{"idx": 0, "rating": <1-5>, "reason": "..."}}, ...]"""
 
         try:
@@ -207,7 +207,17 @@ Reply ONLY with a JSON array, no other text. Keep the same idx. Include a short 
             end = raw.rfind("]")
             if start == -1 or end == -1:
                 raise ValueError(f"No JSON array found in response: {raw[:200]}")
-            ratings = json.loads(raw[start:end + 1])
+            try:
+                ratings = json.loads(raw[start:end + 1])
+            except json.JSONDecodeError:
+                # Fallback: extract individual {...} objects
+                import re
+                ratings = []
+                for m in re.finditer(r'\{[^{}]+\}', raw):
+                    try:
+                        ratings.append(json.loads(m.group()))
+                    except json.JSONDecodeError:
+                        pass
             for entry in ratings:
                 idx = entry.get("idx")
                 if idx is not None and 0 <= idx < len(all_items):
