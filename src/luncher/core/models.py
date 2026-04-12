@@ -45,6 +45,7 @@ class DailyMenu:
     scraped_at: datetime
     url: str
     error: Optional[str] = None
+    restaurant_icon: Optional[str] = None
 
     def __post_init__(self):
         """Ensure items is a list."""
@@ -69,6 +70,7 @@ class RestaurantConfig:
     url: str
     scraper_class: str
     enabled: bool = True
+    icon: Optional[str] = None
 
     def __post_init__(self):
         """Validate configuration."""

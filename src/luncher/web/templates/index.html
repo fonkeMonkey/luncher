@@ -366,7 +366,7 @@
                 <div class="card-accent"></div>
                 <div class="card-body">
                     <div class="restaurant-name">
-                        <span>{{ menu.restaurant_name }}</span>
+                        <span>{% if menu.restaurant_icon %}<span class="restaurant-icon">{{ menu.restaurant_icon }}</span> {% endif %}{{ menu.restaurant_name }}</span>
                         <button class="pin-btn" onclick="togglePin(this)" title="Připnout restauraci">♥</button>
                     </div>
 
