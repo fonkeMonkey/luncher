@@ -28,3 +28,9 @@ restaurants:
     url: "https://www.porke.cz/"
     scraper_class: "luncher.scrapers.implementations.porke.PorkeScraper"
     enabled: true
+
+  - id: las_adelitas
+    name: "Las Adelitas"
+    url: "https://www.lasadelitas.cz/denni-menu/"
+    scraper_class: "luncher.scrapers.implementations.las_adelitas.LasAdelitasScraper"
+    enabled: true
