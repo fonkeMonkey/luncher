@@ -113,9 +113,28 @@ class LasAdelitasScraper(BaseScraper):
         """Find the daily menu image URL from the page HTML."""
         soup = BeautifulSoup(html, 'lxml')
 
+        # Look for the anchor tag with class 'mfp-img' linking to an image in /data/files/
+        for a in soup.find_all('a', class_='mfp-img'):
+            href = a.get('href', '')
+            if '/data/files/' in href:
+                if href.startswith('http'):
+                    return href
+                return f"https://www.lasadelitas.cz{href}"
+
+        # Fallback: look for img tags whose src contains /data/files/ inside the #menu section
+        menu_section = soup.find(id='menu')
+        if menu_section:
+            for img in menu_section.find_all('img'):
+                src = img.get('src', '')
+                if '/data/files/' in src:
+                    if src.startswith('http'):
+                        return src
+                    return f"https://www.lasadelitas.cz{src}"
+
+        # Final fallback: any img tag with /data/files/ in src (excluding theme assets)
         for img in soup.find_all('img'):
             src = img.get('src', '')
-            if '/data/files/' in src:
+            if '/data/files/' in src and '/data/themes/' not in src:
                 if src.startswith('http'):
                     return src
                 return f"https://www.lasadelitas.cz{src}"
