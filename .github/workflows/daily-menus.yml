@@ -2,8 +2,8 @@ name: Daily Lunch Menus
 
 on:
   schedule:
-    # 06:00 UTC = 08:00 CEST (summer) / 07:00 CET (winter), Mon–Fri only
-    - cron: '0 6 * * 1-5'
+    # 09:00 UTC = 11:00 CEST (summer) / 10:00 CET (winter), Mon–Fri only
+    - cron: '0 9 * * 1-5'
   workflow_dispatch: # Allow manual trigger from the Actions tab
 
 permissions:
