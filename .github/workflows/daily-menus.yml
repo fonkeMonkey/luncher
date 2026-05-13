@@ -2,10 +2,10 @@ name: Daily Lunch Menus
 
 on:
   schedule:
-    # Primary: 09:00 UTC = 11:00 CEST (summer) / 10:00 CET (winter), Mon–Fri
-    - cron: '0 9 * * 1-5'
-    # Fallback: 11:00 UTC = 13:00 CEST — catches GitHub cron delays / skips
-    - cron: '0 11 * * 1-5'
+    # Primary: 04:00 UTC = 06:00 CEST (summer) / 05:00 CET (winter), Mon–Fri
+    - cron: '0 4 * * 1-5'
+    # Fallback: 06:00 UTC = 08:00 CEST — catches GitHub cron delays / skips
+    - cron: '0 6 * * 1-5'
   workflow_dispatch: # Allow manual trigger from the Actions tab
 
 permissions:
