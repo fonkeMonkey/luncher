@@ -40,3 +40,10 @@ restaurants:
     scraper_class: "luncher.scrapers.implementations.las_adelitas.LasAdelitasScraper"
     enabled: true
     icon: "🌮"
+
+  - id: lavicka
+    name: "Lavička"
+    url: "https://www.restaurace-lavicka.cz/menu/"
+    scraper_class: "luncher.scrapers.implementations.lavicka.LavickaScraper"
+    enabled: true
+    icon: "🪑"
