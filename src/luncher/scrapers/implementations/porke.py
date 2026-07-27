@@ -1,3 +1,15 @@
+I need to analyze the HTML to understand the new structure. The HTML is truncated, but I can see:
+
+1. The navigation links to `#menu` for "Polední Menu" (not a tab with `tabid_238_1`)
+2. The old tab system (`tabid_238_1`) is gone
+3. The page uses anchor-based navigation with `id="menu"` section
+
+I need to find the lunch menu section by looking for the `#menu` anchor section and then find price list items within it. Since the HTML is truncated, I'll update the scraper to:
+1. Navigate to the `#menu` anchor section instead of clicking a tab
+2. Look for the section with `id="menu"` 
+3. Keep the Elementor price list widget selectors as they likely remain the same
+4. Add fallback strategies if the panel isn't found by id
+
 """Scraper for PORKE restaurant."""
 
 import re
@@ -12,8 +24,7 @@ from luncher.core.models import DailyMenu, MenuItem, MenuItemType
 class PorkeScraper(BaseScraper):
     """Scraper for PORKE restaurant (https://www.porke.cz/).
 
-    The lunch menu is inside a tab panel: a[href="#tabid_238_1"].
-    Must click the tab with Playwright to reveal the content.
+    The lunch menu is in a section anchored at #menu.
     Items use Elementor price list widgets:
       ul.elementor-price-list > li.elementor-price-list-item
         span.elementor-price-list-title   — item name
@@ -22,22 +33,17 @@ class PorkeScraper(BaseScraper):
     Soups are identified by price 49 Kč or keywords in the name.
     """
 
-    TAB_SELECTOR = 'a[href="#tabid_238_1"]'
-    PANEL_ID = 'tabid_238_1'
+    MENU_ANCHOR = '#menu'
 
     async def get_html_for_fallback(self) -> str:
-        """Fetch rendered HTML via Playwright (with tab clicked) for AI fallback."""
+        """Fetch rendered HTML via Playwright for AI fallback."""
         from playwright.async_api import async_playwright
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
             page = await browser.new_page()
             await page.goto(self.config.url, timeout=30000)
             await page.wait_for_load_state('networkidle')
-            try:
-                await page.click(self.TAB_SELECTOR)
-                await page.wait_for_timeout(1000)
-            except Exception:
-                pass
+            await page.wait_for_timeout(1000)
             content = await page.content()
             await browser.close()
         return content
@@ -59,9 +65,6 @@ class PorkeScraper(BaseScraper):
                 page = await browser.new_page()
                 await page.goto(self.config.url, timeout=30000)
                 await page.wait_for_load_state('networkidle')
-
-                # Click the POLEDNÍ MENU tab
-                await page.click(self.TAB_SELECTOR)
                 await page.wait_for_timeout(1000)
 
                 content = await page.content()
@@ -70,11 +73,14 @@ class PorkeScraper(BaseScraper):
             from bs4 import BeautifulSoup
             soup = BeautifulSoup(content, 'lxml')
 
-            panel = soup.find(id=self.PANEL_ID)
+            panel = self._find_menu_panel(soup)
             if not panel:
                 return self.create_error_menu(target_date, "Panel poledního menu nebyl nalezen")
 
             items, raw_text = self._extract_items(panel)
+
+            if not items:
+                return self.create_error_menu(target_date, "Žádné položky menu nebyly nalezeny")
 
             return DailyMenu(
                 restaurant_id=self.config.id,
@@ -88,6 +94,45 @@ class PorkeScraper(BaseScraper):
 
         except Exception as e:
             return self.create_error_menu(target_date, f"Chyba scrapování: {e}")
+
+    def _find_menu_panel(self, soup):
+        """Find the lunch menu panel using multiple strategies."""
+        # Strategy 1: Look for section with id="menu"
+        panel = soup.find(id='menu')
+        if panel and panel.find('li', class_='elementor-price-list-item'):
+            return panel
+
+        # Strategy 2: Look for old tab panel id
+        panel = soup.find(id='tabid_238_1')
+        if panel and panel.find('li', class_='elementor-price-list-item'):
+            return panel
+
+        # Strategy 3: Find a section containing "polední menu" heading text
+        for heading in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'div']):
+            text = heading.get_text(strip=True).lower()
+            if 'polední menu' in text or 'poledni menu' in text:
+                # Walk up to find a section/div ancestor that contains price list items
+                for ancestor in heading.parents:
+                    if ancestor.name in ('section', 'div', 'article'):
+                        if ancestor.find('li', class_='elementor-price-list-item'):
+                            return ancestor
+
+        # Strategy 4: Find any elementor section containing price list items
+        # that also contains lunch-related keywords nearby
+        for section in soup.find_all('section', class_='elementor-section'):
+            price_items = section.find_all('li', class_='elementor-price-list-item')
+            if not price_items:
+                continue
+            section_text = section.get_text(strip=True).lower()
+            if any(kw in section_text for kw in ['polévka', 'soup', 'polední', 'lunch', 'menu']):
+                return section
+
+        # Strategy 5: Return the first container that has price list items
+        for container in soup.find_all(['section', 'div']):
+            if container.find('li', class_='elementor-price-list-item'):
+                return container
+
+        return None
 
     def _extract_items(self, panel) -> Tuple[List[MenuItem], str]:
         """Extract items from Elementor price list widgets in the panel."""
@@ -116,9 +161,9 @@ class PorkeScraper(BaseScraper):
 
             # Soups have 49 Kč price or soup keywords
             nl = name.lower()
-            if price == 49.0 or any(w in nl for w in ['polévka', 'vývar', 'krém', 'bramborová']):
+            if price == 49.0 or any(w in nl for w in ['polévka', 'vývar', 'krém', 'bramborová', 'gulášová', 'hovězí', 'zeleninová', 'čočková', 'česnečka']):
                 item_type = MenuItemType.SOUP
-            elif any(w in nl for w in ['dezert', 'moučník', 'zákusek']):
+            elif any(w in nl for w in ['dezert', 'moučník', 'zákusek', 'dort', 'zmrzlina']):
                 item_type = MenuItemType.DESSERT
             else:
                 item_type = MenuItemType.MAIN
