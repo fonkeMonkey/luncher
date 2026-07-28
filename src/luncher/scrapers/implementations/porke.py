@@ -1,3 +1,14 @@
+I need to analyze the HTML to understand the new structure. The HTML is truncated, but I can see key structural differences:
+
+1. The navigation links show `#menu` for "Polední Menu" instead of a tab-based system
+2. The old tab selector `a[href="#tabid_238_1"]` no longer exists
+3. The page uses anchor-based navigation (`#menu` section) instead of tabs
+
+Since the HTML is truncated and doesn't show the actual menu content, I need to write a scraper that:
+1. Navigates to the `#menu` section instead of clicking a tab
+2. Still looks for Elementor price list widgets (the structure likely remains similar)
+3. Falls back gracefully if the structure has changed further
+
 """Scraper for PORKE restaurant."""
 
 import re
@@ -12,8 +23,7 @@ from luncher.core.models import DailyMenu, MenuItem, MenuItemType
 class PorkeScraper(BaseScraper):
     """Scraper for PORKE restaurant (https://www.porke.cz/).
 
-    The lunch menu is inside a tab panel: a[href="#tabid_238_1"].
-    Must click the tab with Playwright to reveal the content.
+    The lunch menu is in the section with id 'menu' (anchor #menu).
     Items use Elementor price list widgets:
       ul.elementor-price-list > li.elementor-price-list-item
         span.elementor-price-list-title   — item name
@@ -22,22 +32,17 @@ class PorkeScraper(BaseScraper):
     Soups are identified by price 49 Kč or keywords in the name.
     """
 
-    TAB_SELECTOR = 'a[href="#tabid_238_1"]'
-    PANEL_ID = 'tabid_238_1'
+    MENU_ANCHOR = '#menu'
+    MENU_SECTION_ID = 'menu'
 
     async def get_html_for_fallback(self) -> str:
-        """Fetch rendered HTML via Playwright (with tab clicked) for AI fallback."""
+        """Fetch rendered HTML via Playwright for AI fallback."""
         from playwright.async_api import async_playwright
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
             page = await browser.new_page()
             await page.goto(self.config.url, timeout=30000)
             await page.wait_for_load_state('networkidle')
-            try:
-                await page.click(self.TAB_SELECTOR)
-                await page.wait_for_timeout(1000)
-            except Exception:
-                pass
             content = await page.content()
             await browser.close()
         return content
@@ -59,22 +64,32 @@ class PorkeScraper(BaseScraper):
                 page = await browser.new_page()
                 await page.goto(self.config.url, timeout=30000)
                 await page.wait_for_load_state('networkidle')
-
-                # Click the POLEDNÍ MENU tab
-                await page.click(self.TAB_SELECTOR)
-                await page.wait_for_timeout(1000)
-
                 content = await page.content()
                 await browser.close()
 
             from bs4 import BeautifulSoup
             soup = BeautifulSoup(content, 'lxml')
 
-            panel = soup.find(id=self.PANEL_ID)
+            # Try to find the lunch menu section by anchor id 'menu'
+            panel = soup.find(id=self.MENU_SECTION_ID)
+
+            # If not found by id, look for a section containing 'Polední Menu' heading
             if not panel:
-                return self.create_error_menu(target_date, "Panel poledního menu nebyl nalezen")
+                for heading in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
+                    text = heading.get_text(strip=True).lower()
+                    if 'polední menu' in text or 'poledni menu' in text or 'lunch' in text:
+                        # Walk up to a reasonable container
+                        panel = heading.find_parent('section') or heading.find_parent('div')
+                        break
+
+            # If still not found, search the whole page for price list items
+            if not panel:
+                panel = soup
 
             items, raw_text = self._extract_items(panel)
+
+            if not items:
+                return self.create_error_menu(target_date, "Žádné položky menu nebyly nalezeny")
 
             return DailyMenu(
                 restaurant_id=self.config.id,
