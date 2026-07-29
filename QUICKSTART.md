@@ -7,9 +7,6 @@
 ```bash
 # Activate virtual environment
 source venv/bin/activate
-
-# Install Playwright browser (for PORKE restaurant)
-playwright install chromium
 ```
 
 ### 2. Configure API Key (Optional for AI features)
@@ -36,7 +33,7 @@ luncher list
 luncher today
 ```
 
-This will fetch and display menus from all 5 restaurants!
+This will fetch and display menus from all restaurants!
 
 #### View Specific Restaurant
 ```bash
@@ -74,7 +71,8 @@ uvicorn luncher.web.app:app --reload
 2. **Spravovna** (`spravovna`) - Modern Czech food
 3. **Pub Na Plech** (`pub_na_plech`) - Pub food
 4. **Chilli & Lime** (`chilli_lime`) - Asian fusion
-5. **PORKE** (`porke`) - BBQ and grilled
+5. **Las Adelitas** (`las_adelitas`) - Mexican food
+6. **Lavička** (`lavicka`) - Czech traditional cuisine
 
 ## 🎨 Features Overview
 
@@ -98,11 +96,6 @@ uvicorn luncher.web.app:app --reload
 - Interactive Q&A
 
 ## 🔧 Troubleshooting
-
-### "Playwright not installed"
-```bash
-playwright install chromium
-```
 
 ### "API key not found" (for AI features)
 Add your key to `.env` file:

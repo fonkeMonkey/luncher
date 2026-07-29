@@ -4,7 +4,7 @@ Daily lunch menu aggregator for Czech restaurants. Fetches menus from multiple r
 
 ## Features
 
-- 📱 **5 Restaurant Support**: Chilli & Lime, U Telleru, Spravovna, Pub Na Plech, PORKE
+- 📱 **6 Restaurant Support**: Chilli & Lime, U Telleru, Spravovna, Pub Na Plech, Las Adelitas, Lavička
 - 💨 **Smart Caching**: 4-hour cache to avoid repeated scraping
 - 🎨 **Beautiful CLI**: Rich terminal output with tables and colors
 - 🌐 **Web Interface**: Clean, responsive web UI
@@ -36,12 +36,7 @@ Daily lunch menu aggregator for Czech restaurants. Fetches menus from multiple r
    pip install -r requirements.txt
    ```
 
-4. **Install Playwright browsers** (needed for PORKE scraper):
-   ```bash
-   playwright install chromium
-   ```
-
-5. **Configure API key**:
+4. **Configure API key**:
    ```bash
    cp .env.example .env
    # Edit .env and add your Anthropic API key
@@ -49,7 +44,7 @@ Daily lunch menu aggregator for Czech restaurants. Fetches menus from multiple r
 
    Get your API key from: https://console.anthropic.com/
 
-6. **Install the package**:
+5. **Install the package**:
    ```bash
    pip install -e .
    ```
@@ -119,7 +114,8 @@ python -m luncher.web.app
 | Spravovna | `spravovna` | Static HTML |
 | Pub Na Plech | `pub_na_plech` | Static HTML |
 | Chilli & Lime | `chilli_lime` | Dynamic JSON |
-| PORKE | `porke` | Dynamic (Playwright) |
+| Las Adelitas | `las_adelitas` | Dynamic JSON |
+| Lavička | `lavicka` | Static HTML |
 
 ## Project Structure
 
@@ -210,11 +206,6 @@ pytest
 
 ## Troubleshooting
 
-### "Playwright not installed" error
-```bash
-playwright install chromium
-```
-
 ### "Anthropic API key not found" error
 Make sure `.env` file exists with `ANTHROPIC_API_KEY=sk-ant-...`
 
@@ -241,7 +232,6 @@ Built with:
 - [Rich](https://rich.readthedocs.io/) - Terminal formatting
 - [FastAPI](https://fastapi.tiangolo.com/) - Web framework
 - [Beautiful Soup](https://www.crummy.com/software/BeautifulSoup/) - HTML parsing
-- [Playwright](https://playwright.dev/) - Browser automation
 
 ---
 
