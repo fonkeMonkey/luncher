@@ -36,9 +36,7 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: |
-          pip install -e .
-          playwright install chromium --with-deps
+        run: pip install -e .
 
       - name: Configure git for potential healing PRs
         run: |

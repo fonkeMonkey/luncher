@@ -25,6 +25,9 @@ class UtelleruScraper(BaseScraper):
         if target_date is None:
             target_date = date.today()
 
+        if target_date.weekday() >= 5:  # Saturday/Sunday - no lunch menu published
+            return self.create_closed_menu(target_date, "U Telleru má o víkendu zavřeno")
+
         try:
             response = requests.get(self.config.url, timeout=30)
             response.raise_for_status()

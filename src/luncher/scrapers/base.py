@@ -108,6 +108,25 @@ class BaseScraper(ABC):
             error=error_message
         )
 
+    def create_closed_menu(self, target_date: date, message: str = "Zavřeno") -> DailyMenu:
+        """
+        Create a DailyMenu representing a day the restaurant has no menu (e.g. weekend).
+
+        Unlike create_error_menu, this does NOT trigger the AI fallback in
+        scrape_with_healing, since there's nothing wrong with the scraper.
+        """
+        return DailyMenu(
+            restaurant_id=self.config.id,
+            restaurant_name=self.config.name,
+            date=target_date,
+            items=[],
+            raw_text="",
+            scraped_at=datetime.now(),
+            url=self.config.url,
+            error=message,
+            closed=True
+        )
+
     async def get_html_for_fallback(self) -> str:
         """
         Fetch raw page HTML for AI fallback extraction.
@@ -222,7 +241,7 @@ Return ONLY the JSON array, no other text."""
 
         menu = await self.scrape(target_date)
 
-        if not menu.is_valid:
+        if not menu.is_valid and not menu.closed:
             logging.getLogger(__name__).warning(
                 "Scraper failed for %s (%s), trying AI fallback",
                 self.config.id, menu.error

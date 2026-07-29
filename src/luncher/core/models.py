@@ -46,6 +46,7 @@ class DailyMenu:
     url: str
     error: Optional[str] = None
     restaurant_icon: Optional[str] = None
+    closed: bool = False
 
     def __post_init__(self):
         """Ensure items is a list."""
