@@ -29,8 +29,7 @@ class UtelleruScraper(BaseScraper):
             return self.create_closed_menu(target_date, "U Telleru má o víkendu zavřeno")
 
         try:
-            response = requests.get(self.config.url, timeout=30)
-            response.raise_for_status()
+            response = self.get_with_retry(self.config.url)
             soup = BeautifulSoup(response.text, 'lxml')
 
             day_name = self.get_czech_weekday_name(target_date)

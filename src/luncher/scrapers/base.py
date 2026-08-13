@@ -133,10 +133,32 @@ class BaseScraper(ABC):
 
         Override this in scrapers that require JavaScript rendering (e.g. Playwright).
         """
-        import requests
-        response = requests.get(self.config.url, timeout=30)
-        response.raise_for_status()
+        response = self.get_with_retry(self.config.url)
         return response.text
+
+    @staticmethod
+    def get_with_retry(url: str, timeout: int = 30, retries: int = 3, backoff_seconds: tuple = (5, 15)):
+        """
+        GET a URL, retrying on connection/timeout errors before giving up.
+
+        Some restaurant sites intermittently refuse/timeout connections from
+        CI runners (e.g. rate limiting); a couple of short retries clears
+        most of these without resorting to a proxy.
+        """
+        import time
+        import requests
+
+        last_exc = None
+        for attempt in range(retries):
+            try:
+                response = requests.get(url, timeout=timeout)
+                response.raise_for_status()
+                return response
+            except requests.RequestException as e:
+                last_exc = e
+                if attempt < retries - 1:
+                    time.sleep(backoff_seconds[min(attempt, len(backoff_seconds) - 1)])
+        raise last_exc
 
     async def _ai_fallback_scrape(self, target_date: date, original_error: str) -> DailyMenu:
         """
