@@ -144,6 +144,12 @@ class BaseScraper(ABC):
         Some restaurant sites intermittently refuse/timeout connections from
         CI runners (e.g. rate limiting); a couple of short retries clears
         most of these without resorting to a proxy.
+
+        If every retry still fails with a connection-level error (as opposed
+        to an HTTP error status), the site is likely firewalling the CI
+        runner's datacenter IP range outright rather than being flaky. As a
+        last resort, fetch the page through the r.jina.ai reader proxy, which
+        serves the raw HTML from a different exit IP.
         """
         import time
         import requests
@@ -158,6 +164,19 @@ class BaseScraper(ABC):
                 last_exc = e
                 if attempt < retries - 1:
                     time.sleep(backoff_seconds[min(attempt, len(backoff_seconds) - 1)])
+
+        if isinstance(last_exc, (requests.ConnectionError, requests.Timeout)):
+            try:
+                proxied = requests.get(
+                    f"https://r.jina.ai/{url}",
+                    headers={"X-Respond-With": "html"},
+                    timeout=timeout,
+                )
+                proxied.raise_for_status()
+                return proxied
+            except requests.RequestException:
+                pass
+
         raise last_exc
 
     async def _ai_fallback_scrape(self, target_date: date, original_error: str) -> DailyMenu:
