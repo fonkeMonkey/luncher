@@ -2,10 +2,17 @@ name: Daily Lunch Menus
 
 on:
   schedule:
-    # Primary: 03:00 UTC = 05:00 CEST (summer), Mon–Fri — early to absorb GitHub queue delays
-    - cron: '0 3 * * 1-5'
-    # Fallback: 04:00 UTC = 06:00 CEST (summer) / 05:00 CET (winter)
-    - cron: '0 4 * * 1-5'
+    # GitHub explicitly warns that top-of-the-hour schedules are the most
+    # likely to be delayed or silently dropped under load, which is what was
+    # happening to this workflow every run when it used '0 3 * * 1-5' / '0 4
+    # * * 1-5'. All four schedules below land on off-peak minutes and are
+    # spread across the morning so at least one should fire even if others
+    # get dropped; the "already published" guard below keeps the extra
+    # firings cheap.
+    - cron: '17 3 * * 1-5'
+    - cron: '43 4 * * 1-5'
+    - cron: '26 5 * * 1-5'
+    - cron: '38 6 * * 1-5'
   workflow_dispatch: # Allow manual trigger from the Actions tab
 
 permissions:
@@ -29,34 +36,53 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check if today's menu is already published
+        id: check
+        run: |
+          TODAY=$(date -u +%Y-%m-%d)
+          CURRENT=$(curl -sS --max-time 15 "https://fonkemonkey.github.io/luncher/" | grep -oP "const TODAY = '\K[0-9-]+" || echo "")
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$CURRENT" = "$TODAY" ]; then
+            echo "Today's menu ($TODAY) was already published by an earlier scheduled run, skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set up Python
+        if: steps.check.outputs.skip != 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: pip
 
       - name: Install dependencies
+        if: steps.check.outputs.skip != 'true'
         run: pip install -e .
 
       - name: Configure git for potential healing PRs
+        if: steps.check.outputs.skip != 'true'
         run: |
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
 
       - name: Generate static page
+        if: steps.check.outputs.skip != 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: python scripts/generate_static.py
 
       - name: Setup Pages
+        if: steps.check.outputs.skip != 'true'
         uses: actions/configure-pages@v5
 
       - name: Upload artifact
+        if: steps.check.outputs.skip != 'true'
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./docs
 
       - name: Deploy to GitHub Pages
+        if: steps.check.outputs.skip != 'true'
         id: deployment
         uses: actions/deploy-pages@v4
