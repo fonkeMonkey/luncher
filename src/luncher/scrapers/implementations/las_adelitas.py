@@ -19,7 +19,7 @@ from luncher.core.models import DailyMenu, MenuItem, MenuItemType
 class LasAdelitasScraper(BaseScraper):
     """Scraper for Las Adelitas Vinohrady (https://www.lasadelitas.cz/denni-menu/).
 
-    The lunch menu is published as a daily PNG image (e.g. /data/files/DM_Apr2_26-1.png).
+    The lunch menu is published as a daily PNG image (e.g. /data/files/DM_Sep1_26.png).
     This scraper:
       1. Fetches the menu page to find the current image URL.
       2. Downloads the image.
@@ -113,9 +113,36 @@ class LasAdelitasScraper(BaseScraper):
         """Find the daily menu image URL from the page HTML."""
         soup = BeautifulSoup(html, 'lxml')
 
+        # Look for the anchor tag with class 'mfp-img' that links to the menu image
+        for a in soup.find_all('a', class_='mfp-img'):
+            href = a.get('href', '')
+            if '/data/files/' in href:
+                if href.startswith('http'):
+                    return href
+                return f"https://www.lasadelitas.cz{href}"
+
+        # Fallback: search all anchor tags for data/files links pointing to images
+        for a in soup.find_all('a'):
+            href = a.get('href', '')
+            if '/data/files/' in href and any(href.lower().endswith(ext) for ext in ('.png', '.jpg', '.jpeg')):
+                if href.startswith('http'):
+                    return href
+                return f"https://www.lasadelitas.cz{href}"
+
+        # Second fallback: search img tags within the menu section
+        menu_section = soup.find('section', id='menu')
+        if menu_section:
+            for img in menu_section.find_all('img'):
+                src = img.get('src', '')
+                if '/data/files/' in src:
+                    if src.startswith('http'):
+                        return src
+                    return f"https://www.lasadelitas.cz{src}"
+
+        # Last resort: any img tag with /data/files/ in src
         for img in soup.find_all('img'):
             src = img.get('src', '')
-            if '/data/files/' in src:
+            if '/data/files/' in src and any(src.lower().endswith(ext) for ext in ('.png', '.jpg', '.jpeg')):
                 if src.startswith('http'):
                     return src
                 return f"https://www.lasadelitas.cz{src}"
