@@ -261,6 +261,49 @@
             font-style: italic;
         }
 
+        /* ── Fallback section ── */
+        .fallback-section {
+            background: #fff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06);
+            margin-bottom: 28px;
+        }
+
+        .fallback-accent {
+            height: 4px;
+            background: linear-gradient(90deg, #0ea5e9, #6366f1);
+        }
+
+        .fallback-inner {
+            padding: 20px 24px 22px;
+        }
+
+        .fallback-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #0f172a;
+            letter-spacing: -0.2px;
+            margin-bottom: 10px;
+        }
+
+        .fallback-list {
+            list-style: none;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .fallback-list li {
+            font-size: 0.88rem;
+            color: #334155;
+            font-weight: 600;
+            background: #f0f9ff;
+            border: 1px solid #e0f2fe;
+            padding: 5px 14px;
+            border-radius: 999px;
+        }
+
         /* ── AI section ── */
         .ai-section {
             background: #fff;
@@ -404,6 +447,20 @@
                 </div>
             </div>
             {% endfor %}
+        </div>
+
+        <div class="fallback-section">
+            <div class="fallback-accent"></div>
+            <div class="fallback-inner">
+                <div class="fallback-title">Nenašel jsi nic?</div>
+                <ul class="fallback-list">
+                    <li>Float</li>
+                    <li>Malika Indian</li>
+                    <li>Hoxton Burgers</li>
+                    <li>Taco Santo</li>
+                    <li>Oliva Kebab</li>
+                </ul>
+            </div>
         </div>
 
         <div class="ai-section">
