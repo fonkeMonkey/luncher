@@ -25,13 +25,16 @@ class SpravovnaScraper(BaseScraper):
     """
 
     MENICKA_URL = "https://www.menicka.cz/api/iframe/?id=9733&datum=dnes"
+    RESTAURANT_URL = "https://www.spravovna.cz/"
+    IFRAME_SRC_PATTERN = re.compile(r'menicka\.cz/api/iframe/\?[^"\']*id=(\d+)[^"\']*')
 
     async def scrape(self, target_date: Optional[date] = None) -> DailyMenu:
         if target_date is None:
             target_date = date.today()
 
         try:
-            response = requests.get(self.MENICKA_URL, timeout=30)
+            menicka_url = self._resolve_menicka_url()
+            response = requests.get(menicka_url, timeout=30)
             response.raise_for_status()
             soup = BeautifulSoup(response.text, 'lxml')
 
@@ -58,6 +61,33 @@ class SpravovnaScraper(BaseScraper):
             return self.create_error_menu(target_date, f"Chyba načítání: {e}")
         except Exception as e:
             return self.create_error_menu(target_date, f"Chyba scrapování: {e}")
+
+    def _resolve_menicka_url(self) -> str:
+        """
+        Fetch the restaurant's main page and look for a menicka.cz iframe src.
+        If found, normalise it so datum=dnes is present and return it.
+        Fall back to the hard-coded MENICKA_URL if anything goes wrong.
+        """
+        try:
+            response = requests.get(self.RESTAURANT_URL, timeout=30)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'lxml')
+
+            for iframe in soup.find_all('iframe'):
+                src = iframe.get('src', '')
+                if 'menicka.cz' in src:
+                    # Make sure datum=dnes is in the URL
+                    if 'datum=' not in src:
+                        sep = '&' if '?' in src else '?'
+                        src = src + sep + 'datum=dnes'
+                    else:
+                        # Replace whatever datum value is there with 'dnes'
+                        src = re.sub(r'datum=[^&]+', 'datum=dnes', src)
+                    return src
+        except Exception:
+            pass
+
+        return self.MENICKA_URL
 
     def _extract_items(self, table) -> Tuple[List[MenuItem], str]:
         """Extract menu items from the menicka.cz table."""
