@@ -19,7 +19,7 @@ from luncher.core.models import DailyMenu, MenuItem, MenuItemType
 class LasAdelitasScraper(BaseScraper):
     """Scraper for Las Adelitas Vinohrady (https://www.lasadelitas.cz/denni-menu/).
 
-    The lunch menu is published as a daily PNG image (e.g. /data/files/DM_Apr2_26-1.png).
+    The lunch menu is published as a daily PNG image (e.g. /data/files/DM_Oct3_26.png).
     This scraper:
       1. Fetches the menu page to find the current image URL.
       2. Downloads the image.
@@ -113,6 +113,25 @@ class LasAdelitasScraper(BaseScraper):
         """Find the daily menu image URL from the page HTML."""
         soup = BeautifulSoup(html, 'lxml')
 
+        # Look for anchor tags with mfp-img class linking to /data/files/ images
+        for a in soup.find_all('a', class_='mfp-img'):
+            href = a.get('href', '')
+            if '/data/files/' in href:
+                if href.startswith('http'):
+                    return href
+                return f"https://www.lasadelitas.cz{href}"
+
+        # Fallback: look for img tags inside the #menu section
+        menu_section = soup.find(id='menu')
+        if menu_section:
+            for img in menu_section.find_all('img'):
+                src = img.get('src', '')
+                if '/data/files/' in src:
+                    if src.startswith('http'):
+                        return src
+                    return f"https://www.lasadelitas.cz{src}"
+
+        # Final fallback: any img with /data/files/ in src
         for img in soup.find_all('img'):
             src = img.get('src', '')
             if '/data/files/' in src:
