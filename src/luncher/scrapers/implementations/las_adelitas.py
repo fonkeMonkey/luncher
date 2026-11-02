@@ -19,7 +19,7 @@ from luncher.core.models import DailyMenu, MenuItem, MenuItemType
 class LasAdelitasScraper(BaseScraper):
     """Scraper for Las Adelitas Vinohrady (https://www.lasadelitas.cz/denni-menu/).
 
-    The lunch menu is published as a daily PNG image (e.g. /data/files/DM_Apr2_26-1.png).
+    The lunch menu is published as a daily PNG image (e.g. /data/files/DM_Nov1_26.png).
     This scraper:
       1. Fetches the menu page to find the current image URL.
       2. Downloads the image.
@@ -110,12 +110,30 @@ class LasAdelitasScraper(BaseScraper):
             return self.create_error_menu(target_date, f"Chyba scrapování: {e}")
 
     def _find_menu_image_url(self, html: str) -> Optional[str]:
-        """Find the daily menu image URL from the page HTML."""
+        """Find the daily menu image URL from the page HTML.
+
+        The menu image is wrapped in an <a class="mfp-img"> anchor tag pointing
+        directly to the PNG file under /data/files/. We prefer the href of that
+        anchor because it is the full-resolution image; the nested <img> src is
+        identical, but checking the anchor first is more robust.
+        """
         soup = BeautifulSoup(html, 'lxml')
 
+        # Primary strategy: look for the lightbox anchor that wraps the menu image.
+        # The current HTML pattern is:
+        #   <a class="mfp-img" href="https://www.lasadelitas.cz/data/files/DM_Nov1_26.png">
+        for a in soup.find_all('a', class_='mfp-img'):
+            href = a.get('href', '')
+            if '/data/files/' in href:
+                if href.startswith('http'):
+                    return href
+                return f"https://www.lasadelitas.cz{href}"
+
+        # Fallback strategy: scan every <img> whose src lives under /data/files/.
+        # Skip known non-menu images (logo, theme assets, etc.).
         for img in soup.find_all('img'):
             src = img.get('src', '')
-            if '/data/files/' in src:
+            if '/data/files/' in src and '/themes/' not in src:
                 if src.startswith('http'):
                     return src
                 return f"https://www.lasadelitas.cz{src}"
