@@ -19,7 +19,7 @@ from luncher.core.models import DailyMenu, MenuItem, MenuItemType
 class LasAdelitasScraper(BaseScraper):
     """Scraper for Las Adelitas Vinohrady (https://www.lasadelitas.cz/denni-menu/).
 
-    The lunch menu is published as a daily PNG image (e.g. /data/files/DM_Apr2_26-1.png).
+    The lunch menu is published as a daily PNG image (e.g. /data/files/DM_Nov4_26.png).
     This scraper:
       1. Fetches the menu page to find the current image URL.
       2. Downloads the image.
@@ -110,9 +110,44 @@ class LasAdelitasScraper(BaseScraper):
             return self.create_error_menu(target_date, f"Chyba scrapování: {e}")
 
     def _find_menu_image_url(self, html: str) -> Optional[str]:
-        """Find the daily menu image URL from the page HTML."""
+        """Find the daily menu image URL from the page HTML.
+
+        The menu image is wrapped in an anchor tag with class 'mfp-img' inside
+        the #menu section. The href of that anchor points directly to the image.
+        Falls back to searching img src attributes within the #menu section,
+        and finally to any img with a /data/files/ path anywhere on the page.
+        """
         soup = BeautifulSoup(html, 'lxml')
 
+        # Primary strategy: look for <a class="mfp-img" href="..."> inside #menu section.
+        # The href attribute holds the full image URL directly.
+        menu_section = soup.find(id='menu')
+        if menu_section:
+            anchor = menu_section.find('a', class_='mfp-img')
+            if anchor:
+                href = anchor.get('href', '')
+                if href and '/data/files/' in href:
+                    if href.startswith('http'):
+                        return href
+                    return f"https://www.lasadelitas.cz{href}"
+
+            # Secondary strategy: look for img tags within the #menu section
+            for img in menu_section.find_all('img'):
+                src = img.get('src', '')
+                if '/data/files/' in src:
+                    if src.startswith('http'):
+                        return src
+                    return f"https://www.lasadelitas.cz{src}"
+
+        # Fallback strategy: scan all anchor tags with class mfp-img on the entire page
+        for anchor in soup.find_all('a', class_='mfp-img'):
+            href = anchor.get('href', '')
+            if href and '/data/files/' in href:
+                if href.startswith('http'):
+                    return href
+                return f"https://www.lasadelitas.cz{href}"
+
+        # Last resort fallback: scan all img tags on the entire page
         for img in soup.find_all('img'):
             src = img.get('src', '')
             if '/data/files/' in src:
